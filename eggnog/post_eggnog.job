@@ -1,0 +1,49 @@
+#!/bin/bash --login
+# post-process eggnog outputs:
+#   1. parse archaea + bacteria emapper.annotations into combined tables
+#   2. link PhasomeIt PV members to eggnog annotations by locus_tag
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -t 2:00:00
+#SBATCH -J post_eggnog
+#SBATCH -o logs/post_eggnog_%j.out
+#SBATCH -e logs/post_eggnog_%j.err
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../config.sh"
+
+module purge
+module load "${CONDA_MODULE}"
+conda activate "${ENV_EGGNOG}"
+
+: "${EXTRACTION_DIR:?set EXTRACTION_DIR=/path/to/Extraction}"
+: "${CLEANED_DIR:?set CLEANED_DIR=/path/to/Cleaned}"
+: "${SPECIES_CALLS_DIR:?set SPECIES_CALLS_DIR=/path/to/species_calls_out}"
+
+REPO_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+
+mkdir -p "${CLEANED_DIR}" "${CLEANED_DIR}/Mapped_functions"
+
+ARCH_ANN="${EGGNOG_DIR}/output/archaea.emapper.annotations"
+BACT_ANN="${EGGNOG_DIR}/output/bacteria.emapper.annotations"
+
+echo "[parse_eggnog]"
+python "${REPO_ROOT}/eggnog/parse_eggnog.py" \
+    --archaea  "${ARCH_ANN}" \
+    --bacteria "${BACT_ANN}" \
+    --outdir   "${CLEANED_DIR}" \
+    --sample-genus-map "${SPECIES_CALLS_DIR}/SpeciesCallsArchaea.csv"
+
+echo "[link_eggnog] archaea"
+python "${REPO_ROOT}/eggnog/link_eggnog.py" \
+    --members "${EXTRACTION_DIR}/archaea/phasomeit_members.csv" \
+    --eggnog  "${CLEANED_DIR}/all_annotations.tsv" \
+    --out     "${CLEANED_DIR}/Mapped_functions/phasomeit_eggnog_linked.tsv"
+
+echo "[link_eggnog] controls"
+python "${REPO_ROOT}/eggnog/link_eggnog.py" \
+    --members "${EXTRACTION_DIR}/controls/phasomeit_members.csv" \
+    --eggnog  "${CLEANED_DIR}/all_annotations.tsv" \
+    --out     "${CLEANED_DIR}/Mapped_functions/phasomeit_eggnog_linked_controls.tsv"
+
+echo "done"
