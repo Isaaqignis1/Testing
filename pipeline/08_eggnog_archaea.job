@@ -1,0 +1,35 @@
+#!/bin/bash --login
+# stage 08 — eggnog-mapper on the archaeal proteome, tax_scope Archaea (2157)
+# to recover arCOG cross-references for downstream locus linking.
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -c 16
+#SBATCH -t 72:00:00
+#SBATCH -J eggnog_archaea
+#SBATCH -o OUTPUTS/logs/08_eggnog_archaea_%j.out
+#SBATCH -e OUTPUTS/logs/08_eggnog_archaea_%j.err
+
+set -euo pipefail
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck disable=SC1091
+source "${HERE}/../config.sh"
+
+module purge
+[[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
+conda activate "${ENV_EGGNOG}"
+
+mkdir -p "${EGGNOG_DIR}/output"
+
+emapper.py \
+    -i           "${EGGNOG_DIR}/input/archaea_merged.faa" \
+    --itype      proteins \
+    -m           diamond \
+    --data_dir   "${EGGNOG_DB_DIR}" \
+    --tax_scope  Archaea \
+    --go_evidence non-electronic \
+    --target_orthologs all \
+    --seed_ortholog_evalue 0.001 \
+    --output_dir "${EGGNOG_DIR}/output" \
+    --output     archaea \
+    --cpu        16 \
+    --override

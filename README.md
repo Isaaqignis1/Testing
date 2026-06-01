@@ -1,110 +1,140 @@
-# archaeal-phasome
+# archaea-pv-analysis
 
-Scripts for identifying putative phase-variable (PPV) loci in archaeal
-genomes, with three bacterial control genera as reference points.
+End-to-end SLURM pipeline that quantifies putative phase-variable (PPV) loci
+across archaeal genomes, with bacterial controls for reference. The pipeline
+runs from a fresh clone with no external inputs — it downloads everything it
+needs, organises outputs neatly inside the repo, and produces the figures
+from the report.
 
-The repo contains the SLURM jobs and Python scripts that run Prokka,
-PhasomeIt and eggNOG-mapper across the AllTheBacteria archaeal set,
-parse PhasomeIt HTML output, count and normalise PPV loci, join
-PhasomeIt PV genes to eggNOG annotations, run a within-species
-tract-length variation follow-up, and the three Jupyter notebooks that
-produce the report figures.
+## Quick start
 
-**Threshold change from the original write-up.** The published version
-applied a minimum-strain threshold of `>= 5 per genus`. This repo applies
-`>= 5 per species`; a genus is kept only if at least one of its species
-clears the threshold. The species-call table is regenerated from
-AllTheBacteria metadata by `dataset/build_species_calls.py`, not from a
-checked-in static CSV.
+```bash
+# on CSF (or any SLURM cluster)
+git clone <this repo> Testing
+cd Testing
 
-See [RUN.md](RUN.md) for the step-by-step run order on a CSF-style SLURM
-cluster.
+bash setup.sh                  # creates config.sh, clones PhasomeIt, builds 3 conda envs
+bash check_config.sh           # verifies every path/env resolves
+bash run_all.sh                # submits all stages with --dependency=afterok
+```
+
+Resume / partial reruns:
+
+```bash
+bash run_all.sh --from 05      # resume from stage 05
+bash run_all.sh --only 11      # run only the quantification stage
+bash run_all.sh --dry-run      # print the sbatch commands, do not submit
+```
+
+## What you might want to edit
+
+By default the pipeline analyses the 18 archaeal genera from the original
+report against Brucella / E. coli / Campylobacter controls (8 strains per
+species), with a `>=5 strains per species` retention threshold.
+
+To change the targets, edit one of three files — nothing else:
+
+| File                                           | Edit to...                              |
+|------------------------------------------------|------------------------------------------|
+| `standards/default_archaea_genera.txt`         | analyse different archaeal genera        |
+| `standards/default_controls_species.tsv`       | use different bacterial controls          |
+| `config.sh`                                    | change paths, threshold, cluster module   |
+
+All paths in `config.sh` default to locations inside the repo — `INPUTS/`
+for downloaded data and `OUTPUTS/` for everything derived. Override
+`INPUTS_DIR` or `OUTPUTS_DIR` if you'd rather keep raw data on scratch.
 
 ## Layout
 
 ```
-repo/
-├── README.md
-├── RUN.md                          end-to-end run order with sbatch commands
+.
+├── README.md                       ← this file
+├── RUN.md                          step-by-step sbatch reference
 ├── LICENSE
-├── config.sh.example               copy to config.sh and edit
-├── .gitignore
+├── config.sh.example               heavily documented, copy to config.sh
+├── setup.sh                        one-off env setup + PhasomeIt clone
+├── check_config.sh                 sanity checker
+├── run_all.sh                      submit chain, with afterok dependencies
 │
-├── standards/
-│   ├── colors.py                   per-genus colour map and plot ordering
-│   ├── SpeciesCallsArchaea.csv     reference copy of the per-species threshold output
-│   └── SpeciesCallsBacteria.tsv    controls species map (input, not generated)
+├── pipeline/                       one numbered .job per stage
+│   ├── 00_download.job             ATB metadata + fastas
+│   ├── 01_prokka.job               array, one task per fasta
+│   ├── 02_dataset.job              per-species filtering + gff lists
+│   ├── 03_stage_phasomeit.job      stage per-genus .gbk folders
+│   ├── 04_phasomeit.job            array, one task per genus
+│   ├── 05_parse_phasomeit.job      HTML -> CSV tables
+│   ├── 06_eggnog_db.job            one-off ~50 GB download
+│   ├── 07_eggnog_merge.job         concat per-genome .faa
+│   ├── 08_eggnog_archaea.job       emapper, tax_scope Archaea
+│   ├── 09_eggnog_bacteria.job      emapper, default
+│   ├── 10_post_eggnog.job          parse + link to PV members
+│   ├── 11_quantify.job             PV per genome, per Mb, per genus
+│   ├── 12_tract_variation.job      within-species tract-length variance
+│   └── 13_figures.job              Figures 1-4 + supplementary
 │
-├── dataset/                        NEW — replaces the static species-call CSV
-│   ├── build_species_calls.py      filter AllTheBacteria metadata, apply per-species >=5 threshold
-│   ├── build_genus_gff_lists.py    emit <Genus>_gffs.txt lists from species calls + prokka outputs
-│   └── prepare_dataset.job         SLURM wrapper for both
+├── scripts/                        python modules called by the jobs
+│   ├── dataset/                    download_atb, build_species_calls, build_genus_gff_lists
+│   ├── phasomeit/                  setup_archaea, setup_controls
+│   ├── parsing/                    parse_groups, parse_tracts, summarise_runs, build_full_group_summary, summarise_prokka_functions
+│   ├── eggnog/                     merge_proteomes, parse_eggnog, link_eggnog
+│   ├── quantification/             genome_lengths, pv_per_fasta, pv_per_mb
+│   ├── analysis/                   tract_length_variation
+│   └── figures/                    build_master_tables, plot_pv_burden, plot_cog_functions, plot_prokka_top_functions
+│                                   notebooks/* mirror the .py figures for interactive tweaking
 │
-├── annotation/
-│   ├── prokka_archaea.job          prokka, kingdom Archaea
-│   └── prokka_controls.job         prokka, kingdom Bacteria
+├── standards/                      canonical reference data (committed)
+│   ├── colors.py                   per-genus colours + plot order
+│   ├── default_archaea_genera.txt  18 genera analysed in the report
+│   ├── default_controls_species.tsv default control list (>=8/species)
+│   └── contaminants.txt            scientific names to drop
 │
-├── phasomeit/
-│   ├── setup_archaea.py            stage per-genus folders from <Genus>_gffs.txt
-│   ├── setup_controls.py           stage per-genus folders from a sample/species tsv
-│   ├── stage_phasomeit_inputs.job  SLURM wrapper for the two setup scripts
-│   └── phasomeit_run.job           phasomeit array runner, cutoffs -c 7 6 0 5 5
+├── envs/                           conda yamls (used by setup.sh)
+│   ├── prokka.yml
+│   ├── phasome.yml
+│   └── eggnog.yml
 │
-├── parsing/
-│   ├── parse_groups.py             phasomeit group html -> 4 csvs
-│   ├── parse_tracts.py             phasomeit strain html -> tract rows
-│   ├── summarise_runs.py           per-genus run completeness
-│   ├── build_full_group_summary.py NEW — domain-labelled group rows for the notebook
-│   ├── summarise_prokka_functions.py NEW — per-genus ranking of Prokka-annotated PPV functions
-│   └── parse_phasomeit.job         SLURM wrapper for the parsing stage (chains all of the above)
-│
-├── eggnog/
-│   ├── download_eggnog_db.job      NEW — one-time download of the eggnog v5 db
-│   ├── eggnog_input_merger.job     concat prokka .faa files with sample-id prefixes
-│   ├── run_eggnog_archaea.job      emapper, tax_scope Archaea
-│   ├── run_eggnog_bacteria.job     emapper, default tax scope
-│   ├── parse_eggnog.py             emapper.annotations -> tidy tsvs with broad roles
-│   ├── link_eggnog.py              join phasomeit pv members to eggnog by locus tag
-│   └── post_eggnog.job             SLURM wrapper for parse + link
-│
-├── quantification/
-│   ├── pv_per_fasta.py             pv count per genome
-│   ├── genome_lengths.py           genome size in bp and mb
-│   ├── pv_per_mb.py                per-genome and per-genus pv/mb
-│   └── quantify.job                SLURM wrapper that chains the three
-│
-├── analysis/                       NEW — method follow-up (Section 4.4 of report)
-│   ├── tract_length_variation.py   within-species tract-length variance per gene group
-│   └── tract_length_variation.job  SLURM wrapper
-│
-└── figures/
-    ├── build_master_tables.ipynb
-    ├── plot_pv_burden.ipynb
-    └── plot_cog_functions.ipynb
+├── external/                       PhasomeIt is cloned here (gitignored)
+├── INPUTS/                         downloaded source data (gitignored)
+│   ├── archaea/                    ATB fastas + metadata
+│   └── controls/                   control fastas + species map
+└── OUTPUTS/                        all derived data (gitignored)
+    ├── 01_prokka/{archaea,controls}/
+    ├── 02_dataset/{species_calls,genus_gff_lists}/
+    ├── 03_phasomeit/{archaea,controls}/
+    ├── 04_extraction/
+    ├── 05_eggnog/{input,output,db}/
+    ├── 06_cleaned/
+    ├── 07_quantification/
+    ├── 08_analysis/
+    ├── 09_figures/
+    └── logs/
 ```
 
-## Pipeline summary
+## Threshold note
 
-1. `dataset/prepare_dataset.job` — filtered species calls (per-species
-   threshold), per-genus GFF lists.
-2. `annotation/prokka_*.job` — Prokka annotation, run on every fasta.
-3. `phasomeit/stage_phasomeit_inputs.job` — stage per-genus .gbk
-   directories.
-4. `phasomeit/phasomeit_run.job` — PhasomeIt array, one task per genus.
-5. `parsing/parse_phasomeit.job` — HTML → CSV (group summary, tract data,
-   members, pairwise, prokka function ranking).
-6. `eggnog/run_eggnog_*.job` then `eggnog/post_eggnog.job` — annotate and
-   link PV members to eggNOG / arCOG categories.
-7. `quantification/quantify.job` — PV counts, genome sizes, PV / Mb.
-8. `analysis/tract_length_variation.job` — within-species tract-length
-   variance (method follow-up from Section 4.4 of the report).
-9. `figures/*.ipynb` — Figures 1–4 and the master tables.
+The original write-up used a per-genus `>=5` strain threshold. This pipeline
+applies a `>=5 strains per species` rule (a genus is kept if any of its
+species clears the threshold). The threshold lives in
+`MIN_PER_SPECIES` in `config.sh`. Setting it to `1` and re-running stage 02
+recovers the original per-genus behaviour.
 
-## Reproducing the original write-up's numbers
+After stage 02, inspect `OUTPUTS/02_dataset/species_calls/species_count_summary.csv`
+to see which species and genera dropped out under the threshold before
+committing compute to stages 03+.
 
-The numbers in the report were produced under the per-genus `>= 5`
-threshold. To reproduce them exactly, run `dataset/build_species_calls.py`
-with `--keep-singletons` (this disables the species threshold), and add
-back the per-genus filter manually from `species_count_summary.csv`. The
-in-repo version of `standards/SpeciesCallsArchaea.csv` is the per-species
-output and will not exactly match the published numbers.
+## Reproducing the report figures
+
+`pipeline/13_figures.job` produces Figures 1–4 as PDFs and PNGs in
+`OUTPUTS/09_figures/`. The figures depend only on output CSVs from stages
+07, 10, 11 and 12, so you can rerun figures alone (`run_all.sh --only 13`)
+after tweaking colours or layout in `standards/colors.py`.
+
+If you'd rather iterate interactively, use the notebook mirrors under
+`scripts/figures/notebooks/`. They read the same CSVs as the scripts.
+
+## Citation
+
+This pipeline implements the analysis described in Isaaqignis (2026),
+*The cultivable archaeal phasome: a comparative-genomics survey of
+simple-sequence-repeat-mediated phase variation across 18 archaeal genera*
+(MSc dissertation, University of Manchester).

@@ -1,0 +1,33 @@
+#!/bin/bash --login
+# stage 02 — build the per-species filtered call table + per-genus gff lists.
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -t 00:30:00
+#SBATCH -J dataset
+#SBATCH -o OUTPUTS/logs/02_dataset_%j.out
+#SBATCH -e OUTPUTS/logs/02_dataset_%j.err
+
+set -euo pipefail
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck disable=SC1091
+source "${HERE}/../config.sh"
+
+module purge
+[[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
+conda activate "${ENV_PHASOMEIT}"
+
+mkdir -p "${SPECIES_CALLS_DIR}" "${GFF_LISTS_DIR}"
+
+python "${REPO_ROOT}/scripts/dataset/build_species_calls.py" \
+    --meta              "${ATB_METADATA}" \
+    --out-dir           "${SPECIES_CALLS_DIR}" \
+    --min-per-species   "${MIN_PER_SPECIES}" \
+    --contaminants-file "${REPO_ROOT}/standards/contaminants.txt"
+
+python "${REPO_ROOT}/scripts/dataset/build_genus_gff_lists.py" \
+    --species-calls "${SPECIES_CALLS_DIR}/SpeciesCallsArchaea.csv" \
+    --prokka-dir    "${PROKKA_OUT}" \
+    --out-dir       "${GFF_LISTS_DIR}"
+
+echo
+echo "review ${SPECIES_CALLS_DIR}/species_count_summary.csv before continuing"

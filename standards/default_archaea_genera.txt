@@ -1,0 +1,21 @@
+# archaeal genera analysed in the original report (GTDB names).
+# one genus per line. Lines starting with # are ignored. The downloader
+# fetches every AllTheBacteria assembly whose `Genus` matches one of these.
+Haloarcula
+Halobacterium
+Haloferax
+Halorubrum
+Methanobacterium_D
+Methanobrevibacter_A
+Methanoculleus
+Methanothermobacter
+Methanococcus
+Methanohalophilus
+Nitrosopelagicus
+Nitrososphaera
+Metallosphaera
+Saccharolobus
+Sulfolobus
+Sulfuracidifex
+Thermococcus
+Thermococcus_B

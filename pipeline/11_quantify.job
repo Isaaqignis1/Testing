@@ -1,0 +1,44 @@
+#!/bin/bash --login
+# stage 11 — quantification: per-genome PV counts, genome sizes, PV/Mb,
+# per-strain and per-genus rollups.
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -t 1:00:00
+#SBATCH -J quantify
+#SBATCH -o OUTPUTS/logs/11_quantify_%j.out
+#SBATCH -e OUTPUTS/logs/11_quantify_%j.err
+
+set -euo pipefail
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck disable=SC1091
+source "${HERE}/../config.sh"
+
+module purge
+[[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
+conda activate "${ENV_PHASOMEIT}"
+
+mkdir -p "${QUANT_DIR}"
+
+python "${REPO_ROOT}/scripts/quantification/genome_lengths.py" \
+    --base "${PHASOME_ARCHAEA_BASE}" \
+    --out  "${QUANT_DIR}/genome_lengths_archaea.csv"
+
+if [[ -d "${PHASOME_CONTROLS_BASE}" ]]; then
+  python "${REPO_ROOT}/scripts/quantification/genome_lengths.py" \
+      --base "${PHASOME_CONTROLS_BASE}" \
+      --out  "${QUANT_DIR}/genome_lengths_controls.csv"
+fi
+
+python "${REPO_ROOT}/scripts/quantification/pv_per_fasta.py" \
+    --main-base    "${PHASOME_ARCHAEA_BASE}" \
+    --main-csv     "${EXTRACTION_DIR}/archaea/phasomeit_group_summary.csv" \
+    --control-base "${PHASOME_CONTROLS_BASE}" \
+    --control-csv  "${EXTRACTION_DIR}/controls/phasomeit_group_summary.csv" \
+    --out          "${QUANT_DIR}/pv_per_fasta.csv"
+
+python "${REPO_ROOT}/scripts/quantification/pv_per_mb.py" \
+    --pv-counts       "${QUANT_DIR}/pv_per_fasta.csv" \
+    --lengths-main    "${QUANT_DIR}/genome_lengths_archaea.csv" \
+    --lengths-control "${QUANT_DIR}/genome_lengths_controls.csv" \
+    --out-genome      "${QUANT_DIR}/pv_per_mb_per_genome.csv" \
+    --out-genus       "${QUANT_DIR}/pv_per_mb_per_genus.csv"

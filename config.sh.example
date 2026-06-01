@@ -1,49 +1,129 @@
-# copy to config.sh and fill in. the .job files in this repo source it from the repo root
+# =============================================================================
+# archaea-pv-analysis — pipeline configuration
+# =============================================================================
+#
+# QUICK START
+# -----------
+#   cp config.sh.example config.sh
+#   bash check_config.sh         # verify
+#   bash setup.sh                # one-off env + PhasomeIt setup
+#   bash run_all.sh              # submit the whole pipeline to SLURM
+#
+# In the default configuration you do NOT need to edit anything below — all
+# inputs are downloaded into ${REPO_ROOT}/INPUTS, all outputs land in
+# ${REPO_ROOT}/OUTPUTS, and the genus list defaults to the 18 archaeal genera
+# from the original report.
+#
+# Edit ONLY if:
+#   - You want a different conda module string (look up the right name for your
+#     cluster). The default matches Manchester CSF.
+#   - You want to target a different genus set         → ARCHAEA_GENERA_FILE
+#   - You want to use your own bacterial controls      → CONTROLS_SPECIES_TSV
+#   - You want INPUTS / OUTPUTS on scratch (not in-repo) → INPUTS_DIR, OUTPUTS_DIR
+#
+# =============================================================================
 
-# slurm
-export CONDA_MODULE="apps/binapps/conda/miniforge3/25.9.1"   # blank if conda is already on PATH
+# REPO_ROOT is set automatically. Do not edit.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# roots
-export CONDA_ENVS_DIR="${HOME}/.conda/envs"
+# -----------------------------------------------------------------------------
+# 1. Cluster / conda
+# -----------------------------------------------------------------------------
+# CONDA_MODULE  : the `module load` string that puts conda on PATH on your
+#                 cluster. Empty if conda is already on PATH globally.
+# CONDA_ENVS_DIR: where conda creates its named envs. Most Linux setups use
+#                 ~/.conda/envs — leave alone if you don't know.
+# ENV_*         : names of the three conda envs the pipeline expects.
+#                 setup.sh creates them from envs/*.yml using these names.
 
-# conda env names, create these yourself
-export ENV_PROKKA="prokka_env"
-export ENV_PHASOMEIT="phasome_env"
-export ENV_EGGNOG="eggnog"
+CONDA_MODULE="${CONDA_MODULE:-apps/binapps/conda/miniforge3/25.9.1}"
+CONDA_ENVS_DIR="${CONDA_ENVS_DIR:-${HOME}/.conda/envs}"
+ENV_PROKKA="${ENV_PROKKA:-prokka_env}"
+ENV_PHASOMEIT="${ENV_PHASOMEIT:-phasome_env}"
+ENV_EGGNOG="${ENV_EGGNOG:-eggnog_env}"
 
-# genome inputs
-export GENOMES_ARCHAEA_DIR="${HOME}/scratch/genomes/atb.archaea"
-export GENOMES_CONTROLS_DIR="${HOME}/project1/controls/genomes"
-export ARCHAEA_FASTA_LIST="${HOME}/scratch/genomes/archaea_fasta_list.txt"
-export CONTROLS_FASTA_LIST="${GENOMES_CONTROLS_DIR}/comparator_fasta_list.txt"
+# -----------------------------------------------------------------------------
+# 2. Input data — what to analyse
+# -----------------------------------------------------------------------------
+# ARCHAEA_GENERA_FILE   : plain-text file, one GTDB genus name per line. The
+#                         downloader fetches every AllTheBacteria assembly
+#                         whose `genus` column matches one of these names.
+#                         Default = 18 archaeal genera from the report.
+# CONTROLS_SPECIES_TSV  : TSV with sample_accession + scientific_name columns.
+#                         Default = Brucella + E. coli + Campylobacter, 8
+#                         strains per species. Edit / replace for different
+#                         controls. Leave as is or set to "" to skip controls.
+# MIN_PER_SPECIES       : minimum strain count required per archaeal species.
+#                         A genus is kept if ANY of its species clears this.
 
-# prokka output
-export PROKKA_OUT="${HOME}/scratch/prokka/all"
-export PROKKA_CTRL_OUT="${HOME}/project1/controls/prokka"
+ARCHAEA_GENERA_FILE="${ARCHAEA_GENERA_FILE:-${REPO_ROOT}/standards/default_archaea_genera.txt}"
+CONTROLS_SPECIES_TSV="${CONTROLS_SPECIES_TSV:-${REPO_ROOT}/standards/default_controls_species.tsv}"
+MIN_PER_SPECIES="${MIN_PER_SPECIES:-5}"
 
-# eggnog
-export EGGNOG_DIR="${HOME}/project1/eggnog"
-export EGGNOG_DB_DIR="${HOME}/project1/tools/eggnog_db"
+# -----------------------------------------------------------------------------
+# 3. INPUTS — downloaded source data
+# -----------------------------------------------------------------------------
+# Override INPUTS_DIR if you want to store the raw downloads on scratch.
+# All paths below are derived from it.
 
-# external tools
-export PHASOMEIT_REPO="${HOME}/project1/tools/PhasomeIt"
+INPUTS_DIR="${INPUTS_DIR:-${REPO_ROOT}/INPUTS}"
 
-# dataset construction
-# AllTheBacteria metadata (tsv or csv, must contain sample_id + scientific_name)
-export ATB_METADATA="${HOME}/scratch/genomes/atb.archaea/metadata.tsv"
-# output of dataset/build_species_calls.py
-export SPECIES_CALLS_DIR="${HOME}/project1/species_calls"
-# output of dataset/build_genus_gff_lists.py
-export GFF_LISTS_DIR="${HOME}/project1/genus_gff_lists"
-# bacterial controls species map (kept under repo/standards in this repo)
-export CONTROLS_SPECIES_TSV="${HOME}/project1/repo/standards/SpeciesCallsBacteria.tsv"
+GENOMES_ARCHAEA_DIR="${INPUTS_DIR}/archaea/fasta"
+GENOMES_CONTROLS_DIR="${INPUTS_DIR}/controls/fasta"
+ATB_METADATA="${INPUTS_DIR}/archaea/atb_archaea_metadata.tsv"
+ARCHAEA_FASTA_LIST="${INPUTS_DIR}/archaea/fasta_list.txt"
+CONTROLS_FASTA_LIST="${INPUTS_DIR}/controls/fasta_list.txt"
 
-# phasomeit base dirs (one subdir per genus)
-export PHASOME_ARCHAEA_BASE="${HOME}/scratch/phasome/genus_archaea"
-export PHASOME_CONTROLS_BASE="${HOME}/project1/controls/phasome/genus"
+# -----------------------------------------------------------------------------
+# 4. OUTPUTS — derived data + figures + logs
+# -----------------------------------------------------------------------------
+# Override OUTPUTS_DIR if you want results on scratch. Everything else is
+# derived from it. Logs go under ${LOGS_DIR}.
 
-# pipeline output dirs
-export EXTRACTION_DIR="${HOME}/project1/Extraction"
-export CLEANED_DIR="${HOME}/project1/Cleaned"
-export QUANT_DIR="${HOME}/project1/quantification"
-export ANALYSIS_DIR="${HOME}/project1/analysis"
+OUTPUTS_DIR="${OUTPUTS_DIR:-${REPO_ROOT}/OUTPUTS}"
+LOGS_DIR="${LOGS_DIR:-${OUTPUTS_DIR}/logs}"
+
+PROKKA_OUT="${OUTPUTS_DIR}/01_prokka/archaea"
+PROKKA_CTRL_OUT="${OUTPUTS_DIR}/01_prokka/controls"
+SPECIES_CALLS_DIR="${OUTPUTS_DIR}/02_dataset/species_calls"
+GFF_LISTS_DIR="${OUTPUTS_DIR}/02_dataset/genus_gff_lists"
+PHASOME_ARCHAEA_BASE="${OUTPUTS_DIR}/03_phasomeit/archaea"
+PHASOME_CONTROLS_BASE="${OUTPUTS_DIR}/03_phasomeit/controls"
+EXTRACTION_DIR="${OUTPUTS_DIR}/04_extraction"
+EGGNOG_DIR="${OUTPUTS_DIR}/05_eggnog"
+EGGNOG_DB_DIR="${EGGNOG_DIR}/db"
+CLEANED_DIR="${OUTPUTS_DIR}/06_cleaned"
+QUANT_DIR="${OUTPUTS_DIR}/07_quantification"
+ANALYSIS_DIR="${OUTPUTS_DIR}/08_analysis"
+FIGURES_DIR="${OUTPUTS_DIR}/09_figures"
+
+# -----------------------------------------------------------------------------
+# 5. External tools (cloned by setup.sh)
+# -----------------------------------------------------------------------------
+# PhasomeIt is cloned into external/ by setup.sh. Override if you already
+# have a clone elsewhere.
+
+PHASOMEIT_REPO="${PHASOMEIT_REPO:-${REPO_ROOT}/external/PhasomeIt}"
+PHASOMEIT_GIT_URL="${PHASOMEIT_GIT_URL:-https://github.com/JackAidley/PhasomeIt.git}"
+
+# -----------------------------------------------------------------------------
+# 6. SLURM walltimes / partition (override per-job via env if needed)
+# -----------------------------------------------------------------------------
+
+SLURM_PARTITION="${SLURM_PARTITION:-multicore}"
+
+# Export everything so `.job` scripts pick up the values when they `source`
+# config.sh
+export REPO_ROOT \
+       CONDA_MODULE CONDA_ENVS_DIR \
+       ENV_PROKKA ENV_PHASOMEIT ENV_EGGNOG \
+       ARCHAEA_GENERA_FILE CONTROLS_SPECIES_TSV MIN_PER_SPECIES \
+       INPUTS_DIR OUTPUTS_DIR LOGS_DIR \
+       GENOMES_ARCHAEA_DIR GENOMES_CONTROLS_DIR ATB_METADATA \
+       ARCHAEA_FASTA_LIST CONTROLS_FASTA_LIST \
+       PROKKA_OUT PROKKA_CTRL_OUT \
+       SPECIES_CALLS_DIR GFF_LISTS_DIR \
+       PHASOME_ARCHAEA_BASE PHASOME_CONTROLS_BASE \
+       EXTRACTION_DIR EGGNOG_DIR EGGNOG_DB_DIR \
+       CLEANED_DIR QUANT_DIR ANALYSIS_DIR FIGURES_DIR \
+       PHASOMEIT_REPO PHASOMEIT_GIT_URL SLURM_PARTITION

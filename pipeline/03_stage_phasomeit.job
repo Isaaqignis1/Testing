@@ -1,0 +1,38 @@
+#!/bin/bash --login
+# stage 03 — stage per-genus folders of .gbk files for PhasomeIt input,
+# both the archaeal main set and the bacterial controls.
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -t 1:00:00
+#SBATCH -J stage_phasomeit
+#SBATCH -o OUTPUTS/logs/03_stage_phasomeit_%j.out
+#SBATCH -e OUTPUTS/logs/03_stage_phasomeit_%j.err
+
+set -euo pipefail
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck disable=SC1091
+source "${HERE}/../config.sh"
+
+module purge
+[[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
+conda activate "${ENV_PHASOMEIT}"
+
+python "${REPO_ROOT}/scripts/phasomeit/setup_archaea.py" \
+    --in-dir   "${GFF_LISTS_DIR}" \
+    --out-root "${PHASOME_ARCHAEA_BASE}"
+
+if [[ -f "${CONTROLS_SPECIES_TSV}" ]]; then
+  python "${REPO_ROOT}/scripts/phasomeit/setup_controls.py" \
+      --prokka-dir "${PROKKA_CTRL_OUT}" \
+      --mapping    "${CONTROLS_SPECIES_TSV}" \
+      --out-root   "${PHASOME_CONTROLS_BASE}"
+fi
+
+# build the per-genus list files consumed by stage 04
+find "${PHASOME_ARCHAEA_BASE}"  -mindepth 1 -maxdepth 1 -type d ! -name "_*" | sort > "${PHASOME_ARCHAEA_BASE}/_genus_dirs.txt"
+[[ -d "${PHASOME_CONTROLS_BASE}" ]] && \
+  find "${PHASOME_CONTROLS_BASE}" -mindepth 1 -maxdepth 1 -type d ! -name "_*" | sort > "${PHASOME_CONTROLS_BASE}/_genus_dirs.txt"
+
+echo "archaea genera : $(wc -l < "${PHASOME_ARCHAEA_BASE}/_genus_dirs.txt")"
+[[ -f "${PHASOME_CONTROLS_BASE}/_genus_dirs.txt" ]] && \
+  echo "controls genera: $(wc -l < "${PHASOME_CONTROLS_BASE}/_genus_dirs.txt")"

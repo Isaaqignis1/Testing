@@ -1,0 +1,11 @@
+# scientific names known to be non-archaeal contaminants in the
+# AllTheBacteria "archaea" set, plus catch-all unknown labels.
+# the dataset builder removes any sample whose scientific_name matches
+# (exact, case-sensitive).
+unknown
+Unknown
+Streptococcus pneumoniae
+Streptococcus pseudopneumoniae
+Paraclostridium dentum
+Lysobacter enzymogenes
+Chromohalobacter canadensis

@@ -1,0 +1,27 @@
+#!/bin/bash --login
+# stage 06 — one-off download of the eggnog v5 reference database.
+# Heavy (~50 GB). Idempotent: existing files are kept.
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -c 4
+#SBATCH -t 8:00:00
+#SBATCH -J eggnog_db
+#SBATCH -o OUTPUTS/logs/06_eggnog_db_%j.out
+#SBATCH -e OUTPUTS/logs/06_eggnog_db_%j.err
+
+set -euo pipefail
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck disable=SC1091
+source "${HERE}/../config.sh"
+
+module purge
+[[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
+conda activate "${ENV_EGGNOG}"
+
+mkdir -p "${EGGNOG_DB_DIR}"
+
+# -y: assume yes, -P: also pull pfam, -M: skip MMseqs2
+download_eggnog_data.py --data_dir "${EGGNOG_DB_DIR}" -y -P
+
+echo "eggnog db ready at ${EGGNOG_DB_DIR}"
+ls -lh "${EGGNOG_DB_DIR}" | head

@@ -1,0 +1,74 @@
+#!/bin/bash --login
+# stage 01 — annotate every downloaded fasta with Prokka.
+# Uses an array job, one task per fasta. Reads the fasta-list files produced
+# by stage 00. Array size is set dynamically by reading the list length.
+#SBATCH -p multicore
+#SBATCH -n 4
+#SBATCH -t 1-0
+#SBATCH -J prokka
+#SBATCH -o OUTPUTS/logs/01_prokka_%A_%a.out
+#SBATCH -e OUTPUTS/logs/01_prokka_%A_%a.err
+
+set -euo pipefail
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck disable=SC1091
+source "${HERE}/../config.sh"
+
+module purge
+[[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
+conda activate "${ENV_PROKKA}"
+
+# --- Build a combined list of (fasta, dest_root, kingdom) once -------------
+COMBINED="${OUTPUTS_DIR}/01_prokka/_combined_list.tsv"
+mkdir -p "$(dirname "${COMBINED}")"
+
+if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
+  # generate the list, print the array spec to use, and exit
+  : > "${COMBINED}"
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && echo -e "${GENOMES_ARCHAEA_DIR}/$f\t${PROKKA_OUT}\tArchaea" >> "${COMBINED}"
+  done < "${ARCHAEA_FASTA_LIST}"
+  if [[ -f "${CONTROLS_FASTA_LIST}" ]]; then
+    while IFS= read -r f; do
+      [[ -n "$f" ]] && echo -e "${GENOMES_CONTROLS_DIR}/$f\t${PROKKA_CTRL_OUT}\tBacteria" >> "${COMBINED}"
+    done < "${CONTROLS_FASTA_LIST}"
+  fi
+  N=$(wc -l < "${COMBINED}")
+  echo "  wrote ${COMBINED} (${N} tasks)"
+  echo "  re-submit with: sbatch -a 1-${N}%50 ${HERE}/01_prokka.job"
+  exit 0
+fi
+
+# --- Array task: process one fasta ----------------------------------------
+LINE=$(awk "NR==${SLURM_ARRAY_TASK_ID}" "${COMBINED}")
+FA=$(echo  "${LINE}" | cut -f1)
+DEST=$(echo "${LINE}" | cut -f2)
+KING=$(echo "${LINE}" | cut -f3)
+
+BASE=$(basename "${FA}")
+BASE=${BASE%.gz}
+BASE=${BASE%.fa}; BASE=${BASE%.fna}; BASE=${BASE%.fasta}
+
+mkdir -p "${DEST}"
+
+if [[ -s "${DEST}/${BASE}/${BASE}.gff" ]]; then
+  echo "skip: ${BASE} already annotated"; exit 0
+fi
+
+# gunzip into a temp file so prokka doesn't need to handle gz directly
+WORK="$(mktemp -d)"
+trap 'rm -rf "${WORK}"' EXIT
+INFA="${WORK}/${BASE}.fa"
+if [[ "${FA}" == *.gz ]]; then
+  zcat "${FA}" > "${INFA}"
+else
+  cp "${FA}" "${INFA}"
+fi
+
+prokka \
+  --outdir   "${DEST}/${BASE}" \
+  --prefix   "${BASE}" \
+  --kingdom  "${KING}" \
+  --compliant \
+  --cpus     "${SLURM_CPUS_ON_NODE:-${SLURM_NTASKS:-4}}" \
+  "${INFA}"

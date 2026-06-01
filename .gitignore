@@ -1,18 +1,35 @@
+# personal config (copy from example, never committed)
 config.sh
 
+# python
 __pycache__/
 *.pyc
 *.pyo
 .venv/
 .ipynb_checkpoints/
 
-logs/
+# SLURM artefacts
+slurm-*.out
 *.out
 *.err
-slurm-*.out
 
+# eggnog scratch
 emappertmp_*/
 .lock
 
+# all downloaded data
+INPUTS/*
+!INPUTS/.gitkeep
+
+# all derived data
+OUTPUTS/*
+!OUTPUTS/.gitkeep
+!OUTPUTS/logs/.gitkeep
+
+# cloned tools
+external/*
+!external/.gitkeep
+
+# OS noise
 .DS_Store
 Thumbs.db

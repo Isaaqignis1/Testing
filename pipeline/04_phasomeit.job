@@ -1,0 +1,52 @@
+#!/bin/bash --login
+# stage 04 — run PhasomeIt on every genus directory staged in stage 03.
+# One array task per genus. Submit once for archaea, once for controls,
+# selecting the LIST via --export.
+#
+# cutoffs from original phasomeit paper: mono>=7, di>=6, tri excluded, tetra+ >=5
+#
+# Without SLURM_ARRAY_TASK_ID set, this script auto-detects the LIST size
+# and prints the array submission command (analogous to 01_prokka.job).
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -c 8
+#SBATCH -t 6:00:00
+#SBATCH -J phasomeit
+#SBATCH -o OUTPUTS/logs/04_phasomeit_%A_%a.out
+#SBATCH -e OUTPUTS/logs/04_phasomeit_%A_%a.err
+
+set -euo pipefail
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck disable=SC1091
+source "${HERE}/../config.sh"
+
+module purge
+[[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
+
+PY="${CONDA_ENVS_DIR}/${ENV_PHASOMEIT}/bin/python"
+export PATH="$(dirname "${PY}"):${PATH}"
+
+# Default LIST = archaea. To process controls, submit with:
+#   sbatch --export=ALL,LIST=${PHASOME_CONTROLS_BASE}/_genus_dirs.txt 04_phasomeit.job
+LIST="${LIST:-${PHASOME_ARCHAEA_BASE}/_genus_dirs.txt}"
+
+if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
+  N=$(wc -l < "${LIST}")
+  echo "  LIST=${LIST} has ${N} genera"
+  echo "  submit with: sbatch -a 1-${N}%9 --export=ALL,LIST=${LIST} ${HERE}/04_phasomeit.job"
+  exit 0
+fi
+
+TARGET=$(awk "NR==${SLURM_ARRAY_TASK_ID}" "${LIST}")
+GENUS=$(basename "${TARGET}")
+echo "task ${SLURM_ARRAY_TASK_ID}  genus ${GENUS}"
+
+cd "${PHASOMEIT_REPO}"
+chmod +x "${PHASOMEIT_REPO}/bossref" 2>/dev/null || true
+
+if [[ -d "${TARGET}/summary_tracts" ]]; then
+  echo "skip ${GENUS}, summary_tracts exists"
+  exit 0
+fi
+
+"${PY}" phasomeit.py -t "${TARGET}" -c 7 6 0 5 5

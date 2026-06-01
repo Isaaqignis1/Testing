@@ -1,0 +1,26 @@
+#!/bin/bash --login
+# stage 12 — within-species tract-length variation across strains, per
+# gene group (method follow-up from Section 4.4 of the report).
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -t 1:00:00
+#SBATCH -J tract_variation
+#SBATCH -o OUTPUTS/logs/12_tract_variation_%j.out
+#SBATCH -e OUTPUTS/logs/12_tract_variation_%j.err
+
+set -euo pipefail
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck disable=SC1091
+source "${HERE}/../config.sh"
+
+module purge
+[[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
+conda activate "${ENV_PHASOMEIT}"
+
+mkdir -p "${ANALYSIS_DIR}"
+
+python "${REPO_ROOT}/scripts/analysis/tract_length_variation.py" \
+    --tracts          "${EXTRACTION_DIR}/phasomeit_tract_data.csv" \
+    --species-calls   "${SPECIES_CALLS_DIR}/SpeciesCallsArchaea.csv" \
+    --controls-calls  "${CONTROLS_SPECIES_TSV}" \
+    --outdir          "${ANALYSIS_DIR}"

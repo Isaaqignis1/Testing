@@ -1,0 +1,39 @@
+#!/bin/bash --login
+# stage 10 — parse emapper outputs + link PhasomeIt PV members to eggnog
+# annotations by locus_tag.
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -t 2:00:00
+#SBATCH -J post_eggnog
+#SBATCH -o OUTPUTS/logs/10_post_eggnog_%j.out
+#SBATCH -e OUTPUTS/logs/10_post_eggnog_%j.err
+
+set -euo pipefail
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck disable=SC1091
+source "${HERE}/../config.sh"
+
+module purge
+[[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
+conda activate "${ENV_EGGNOG}"
+
+mkdir -p "${CLEANED_DIR}/Mapped_functions"
+
+python "${REPO_ROOT}/scripts/eggnog/parse_eggnog.py" \
+    --archaea            "${EGGNOG_DIR}/output/archaea.emapper.annotations" \
+    --bacteria           "${EGGNOG_DIR}/output/bacteria.emapper.annotations" \
+    --outdir             "${CLEANED_DIR}" \
+    --sample-genus-map   "${SPECIES_CALLS_DIR}/SpeciesCallsArchaea.csv" \
+    --controls-genus-map "${PHASOME_CONTROLS_BASE}/../../INPUTS/controls/controls_species.tsv"
+
+python "${REPO_ROOT}/scripts/eggnog/link_eggnog.py" \
+    --members "${EXTRACTION_DIR}/archaea/phasomeit_members.csv" \
+    --eggnog  "${CLEANED_DIR}/all_annotations.tsv" \
+    --out     "${CLEANED_DIR}/Mapped_functions/phasomeit_eggnog_linked.tsv"
+
+if [[ -f "${EXTRACTION_DIR}/controls/phasomeit_members.csv" ]]; then
+  python "${REPO_ROOT}/scripts/eggnog/link_eggnog.py" \
+      --members "${EXTRACTION_DIR}/controls/phasomeit_members.csv" \
+      --eggnog  "${CLEANED_DIR}/all_annotations.tsv" \
+      --out     "${CLEANED_DIR}/Mapped_functions/phasomeit_eggnog_linked_controls.tsv"
+fi
