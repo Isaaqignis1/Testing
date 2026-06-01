@@ -5,8 +5,6 @@
 #SBATCH -n 2
 #SBATCH -t 1:00:00
 #SBATCH -J tract_variation
-#SBATCH -o OUTPUTS/logs/12_tract_variation_%j.out
-#SBATCH -e OUTPUTS/logs/12_tract_variation_%j.err
 
 set -euo pipefail
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"

@@ -6,8 +6,6 @@
 #SBATCH -c 16
 #SBATCH -t 72:00:00
 #SBATCH -J eggnog_archaea
-#SBATCH -o OUTPUTS/logs/08_eggnog_archaea_%j.out
-#SBATCH -e OUTPUTS/logs/08_eggnog_archaea_%j.err
 
 set -euo pipefail
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"

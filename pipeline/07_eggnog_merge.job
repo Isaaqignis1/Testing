@@ -4,8 +4,6 @@
 #SBATCH -n 2
 #SBATCH -t 4:00:00
 #SBATCH -J eggnog_merge
-#SBATCH -o OUTPUTS/logs/07_eggnog_merge_%j.out
-#SBATCH -e OUTPUTS/logs/07_eggnog_merge_%j.err
 
 set -euo pipefail
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"

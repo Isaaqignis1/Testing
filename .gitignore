@@ -8,27 +8,10 @@ __pycache__/
 .venv/
 .ipynb_checkpoints/
 
-# SLURM artefacts
+# SLURM stdout/stderr if they ever land inside the repo
 slurm-*.out
 *.out
 *.err
-
-# eggnog scratch
-emappertmp_*/
-.lock
-
-# all downloaded data
-INPUTS/*
-!INPUTS/.gitkeep
-
-# all derived data
-OUTPUTS/*
-!OUTPUTS/.gitkeep
-!OUTPUTS/logs/.gitkeep
-
-# cloned tools
-external/*
-!external/.gitkeep
 
 # OS noise
 .DS_Store

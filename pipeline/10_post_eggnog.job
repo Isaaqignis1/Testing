@@ -5,8 +5,6 @@
 #SBATCH -n 2
 #SBATCH -t 2:00:00
 #SBATCH -J post_eggnog
-#SBATCH -o OUTPUTS/logs/10_post_eggnog_%j.out
-#SBATCH -e OUTPUTS/logs/10_post_eggnog_%j.err
 
 set -euo pipefail
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"

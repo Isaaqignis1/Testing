@@ -36,10 +36,12 @@ submit_stage() {
     echo "missing job file: $JOB" >&2
     exit 1
   fi
+  LOG_OUT="${LOGS_DIR}/${STAGE}_%A_%a.out"
+  LOG_ERR="${LOGS_DIR}/${STAGE}_%A_%a.err"
   if [ -n "$DEP" ]; then
-    CMD="sbatch --parsable --dependency=afterok:${DEP} ${JOB}"
+    CMD="sbatch --parsable --output=${LOG_OUT} --error=${LOG_ERR} --dependency=afterok:${DEP} ${JOB}"
   else
-    CMD="sbatch --parsable ${JOB}"
+    CMD="sbatch --parsable --output=${LOG_OUT} --error=${LOG_ERR} ${JOB}"
   fi
   if [ "$DRYRUN" -eq 1 ]; then
     echo "  + ${CMD}" >&2
@@ -71,4 +73,5 @@ for STAGE in $STAGES; do
 done
 
 echo
-echo "tail logs with:  tail -f $LOGS_DIR/*.out"
+echo "logs go to:  $LOGS_DIR"
+echo "tail with :  tail -f $LOGS_DIR/*.out"

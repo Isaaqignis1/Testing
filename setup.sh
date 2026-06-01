@@ -1,80 +1,91 @@
 #!/usr/bin/env bash
-# one-off setup: create config.sh, clone PhasomeIt, create conda envs
-# safe to re-run — every step is idempotent.
+# setup.sh - one-off setup. Safe to re-run.
+#   1. write config.sh from the example (only if missing)
+#   2. clone PhasomeIt into PHASOMEIT_REPO (only if missing)
+#   3. create the three conda envs from envs/*.yml if they do not exist yet
 #
-# usage: bash setup.sh
-#        bash setup.sh --skip-envs    # only clone PhasomeIt + write config
-#        bash setup.sh --skip-clone   # only create envs
+# Conda envs live wherever conda already keeps them, NOT inside the repo.
+# Data dirs live on scratch (see config.sh), NOT inside the repo.
+#
+# usage:
+#   bash setup.sh
+#   bash setup.sh --skip-envs    # only clone PhasomeIt + write config
+#   bash setup.sh --skip-clone   # only create envs
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
-cd "${REPO_ROOT}"
+cd "$REPO_ROOT"
 
-SKIP_ENVS=0; SKIP_CLONE=0
+SKIP_ENVS=0
+SKIP_CLONE=0
 for a in "$@"; do
   case "$a" in
     --skip-envs)  SKIP_ENVS=1 ;;
     --skip-clone) SKIP_CLONE=1 ;;
-    -h|--help)    sed -n '2,8p' "$0"; exit 0 ;;
+    -h|--help)    sed -n '2,12p' "$0"; exit 0 ;;
     *) echo "unknown arg: $a"; exit 2 ;;
   esac
 done
 
-# ---------- 1. config.sh -----------------------------------------------------
-if [[ ! -f config.sh ]]; then
+# 1. config.sh
+if [ ! -f config.sh ]; then
   cp config.sh.example config.sh
   echo "[setup] created config.sh from config.sh.example"
+  echo "        edit it if you want non-default paths/envs."
 else
-  echo "[setup] config.sh already exists, leaving as-is"
+  echo "[setup] config.sh already exists"
 fi
-# shellcheck disable=SC1091
 source config.sh
 
-# ---------- 2. PhasomeIt clone ----------------------------------------------
-if [[ "${SKIP_CLONE}" -eq 0 ]]; then
-  if [[ ! -d "${PHASOMEIT_REPO}/.git" ]]; then
-    echo "[setup] cloning PhasomeIt -> ${PHASOMEIT_REPO}"
-    mkdir -p "$(dirname "${PHASOMEIT_REPO}")"
-    git clone "${PHASOMEIT_GIT_URL}" "${PHASOMEIT_REPO}"
-    chmod +x "${PHASOMEIT_REPO}/bossref" 2>/dev/null || true
+# 2. PhasomeIt clone
+if [ "$SKIP_CLONE" -eq 0 ]; then
+  if [ -d "$PHASOMEIT_REPO/.git" ]; then
+    echo "[setup] PhasomeIt already cloned at $PHASOMEIT_REPO"
   else
-    echo "[setup] PhasomeIt already cloned at ${PHASOMEIT_REPO}"
+    echo "[setup] cloning PhasomeIt -> $PHASOMEIT_REPO"
+    mkdir -p "$(dirname "$PHASOMEIT_REPO")"
+    git clone "$PHASOMEIT_GIT_URL" "$PHASOMEIT_REPO"
+    chmod +x "$PHASOMEIT_REPO/bossref" 2>/dev/null || true
   fi
 fi
 
-# ---------- 3. conda envs ----------------------------------------------------
-if [[ "${SKIP_ENVS}" -eq 0 ]]; then
-  if [[ -n "${CONDA_MODULE}" ]]; then
+# 3. conda envs
+if [ "$SKIP_ENVS" -eq 0 ]; then
+  if [ -n "$CONDA_MODULE" ]; then
     module purge 2>/dev/null || true
-    module load "${CONDA_MODULE}" 2>/dev/null || {
-      echo "[setup] WARNING: 'module load ${CONDA_MODULE}' failed. If you're not on CSF, set CONDA_MODULE='' in config.sh."
+    module load "$CONDA_MODULE" 2>/dev/null || {
+      echo "[setup] WARN: 'module load $CONDA_MODULE' failed."
+      echo "             If conda is already on PATH this is fine."
     }
   fi
-  if ! command -v conda >/dev/null; then
-    echo "[setup] ERROR: conda not on PATH. Fix CONDA_MODULE in config.sh or load conda before running setup."
+  if ! command -v conda >/dev/null 2>&1; then
+    echo "[setup] ERROR: conda not on PATH."
+    echo "        Fix CONDA_MODULE in config.sh, or load conda manually first."
     exit 1
   fi
   source "$(conda info --base)/etc/profile.d/conda.sh"
 
-  for spec in \
-      "${ENV_PROKKA}:envs/prokka.yml" \
-      "${ENV_PHASOMEIT}:envs/phasome.yml" \
-      "${ENV_EGGNOG}:envs/eggnog.yml"; do
-    name="${spec%%:*}"; yml="${spec##*:}"
-    if [[ -d "${CONDA_ENVS_DIR}/${name}" ]]; then
-      echo "[setup] env ${name} already exists at ${CONDA_ENVS_DIR}/${name}"
+  create_env_if_missing() {
+    local name="$1"
+    local yml="$2"
+    if conda env list | awk '{print $1}' | grep -qx "$name"; then
+      echo "[setup] env '$name' already exists"
     else
-      echo "[setup] creating env ${name} from ${yml}"
-      conda env create -n "${name}" -f "${REPO_ROOT}/${yml}"
+      echo "[setup] creating env '$name' from $yml"
+      conda env create -n "$name" -f "$REPO_ROOT/$yml"
     fi
-  done
+  }
+  create_env_if_missing "$ENV_PROKKA"    "envs/prokka.yml"
+  create_env_if_missing "$ENV_PHASOMEIT" "envs/phasome.yml"
+  create_env_if_missing "$ENV_EGGNOG"    "envs/eggnog.yml"
 fi
 
-# ---------- 4. ensure dirs ---------------------------------------------------
-mkdir -p "${LOGS_DIR}" "${INPUTS_DIR}" "${OUTPUTS_DIR}"
+# 4. ensure scratch dirs
+mkdir -p "$SCRATCH_ROOT" "$INPUTS_DIR" "$OUTPUTS_DIR" "$LOGS_DIR" "$ATB_TARBALL_CACHE"
 
 echo
 echo "[setup] done."
-echo "        next: bash check_config.sh"
-echo "              bash run_all.sh"
+echo "        next:  bash check_setup.sh"
+echo "        then:  bash run_all.sh --dry-run"
+echo "        then:  bash run_all.sh"

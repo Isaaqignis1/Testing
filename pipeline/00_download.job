@@ -1,35 +1,32 @@
 #!/bin/bash --login
-# stage 00 — download AllTheBacteria assemblies for the target genus list +
-# the bacterial controls. Produces:
-#   ${GENOMES_ARCHAEA_DIR}/*.fa.gz
-#   ${GENOMES_CONTROLS_DIR}/*.fa.gz
-#   ${ATB_METADATA}
-#   ${ARCHAEA_FASTA_LIST}, ${CONTROLS_FASTA_LIST}
+# stage 00 - download AllTheBacteria assemblies for the target genus list
+# plus the bacterial controls.
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -t 8:00:00
 #SBATCH -J atb_download
-#SBATCH -o OUTPUTS/logs/00_download_%j.out
-#SBATCH -e OUTPUTS/logs/00_download_%j.err
 
 set -euo pipefail
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-# shellcheck disable=SC1091
 source "${HERE}/../config.sh"
 
 module purge
 [[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
 conda activate "${ENV_PHASOMEIT}"
 
-mkdir -p "${GENOMES_ARCHAEA_DIR}" "${GENOMES_CONTROLS_DIR}"
+mkdir -p "${GENOMES_ARCHAEA_DIR}" "${GENOMES_CONTROLS_DIR}" "${ATB_TARBALL_CACHE}"
 
 python "${REPO_ROOT}/scripts/dataset/download_atb.py" \
     --archaea-genera-file "${ARCHAEA_GENERA_FILE}" \
     --controls-tsv        "${CONTROLS_SPECIES_TSV}" \
     --outdir-archaea      "${GENOMES_ARCHAEA_DIR}" \
     --outdir-controls     "${GENOMES_CONTROLS_DIR}" \
-    --metadata-out        "${ATB_METADATA}"
+    --metadata-out        "${ATB_METADATA}" \
+    --controls-out        "${CONTROLS_GENUS_MAP}" \
+    --tar-cache           "${ATB_TARBALL_CACHE}"
 
 echo "--- summary ---"
-echo "archaea fastas : $(find "${GENOMES_ARCHAEA_DIR}" -maxdepth 1 -name "*.fa*" | wc -l)"
-echo "controls fastas: $(find "${GENOMES_CONTROLS_DIR}" -maxdepth 1 -name "*.fa*" | wc -l)"
+N_ARCH=$(find "${GENOMES_ARCHAEA_DIR}"  -maxdepth 1 -name "*.fa*" 2>/dev/null | wc -l)
+N_CTRL=$(find "${GENOMES_CONTROLS_DIR}" -maxdepth 1 -name "*.fa*" 2>/dev/null | wc -l)
+echo "archaea fastas : ${N_ARCH}"
+echo "controls fastas: ${N_CTRL}"
