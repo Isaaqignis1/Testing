@@ -1,9 +1,9 @@
 #!/bin/bash --login
-# stage 00 - download AllTheBacteria assemblies for the target genus list
-# plus the bacterial controls.
+# stage 00 - download AllTheBacteria archaeal assemblies from OSF.
+# Two URLs, one tarball, ~154 MB. No big ATB index needed.
 #SBATCH -p multicore
 #SBATCH -n 2
-#SBATCH -t 8:00:00
+#SBATCH -t 4:00:00
 #SBATCH -J atb_download
 
 set -euo pipefail
@@ -14,19 +14,21 @@ module purge
 [[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
 conda activate "${ENV_PHASOMEIT}"
 
-mkdir -p "${GENOMES_ARCHAEA_DIR}" "${GENOMES_CONTROLS_DIR}" "${ATB_TARBALL_CACHE}"
+mkdir -p "${GENOMES_ARCHAEA_DIR}" "${ATB_TARBALL_CACHE}"
 
 python "${REPO_ROOT}/scripts/dataset/download_atb.py" \
-    --archaea-genera-file "${ARCHAEA_GENERA_FILE}" \
-    --controls-tsv        "${CONTROLS_SPECIES_TSV}" \
-    --outdir-archaea      "${GENOMES_ARCHAEA_DIR}" \
-    --outdir-controls     "${GENOMES_CONTROLS_DIR}" \
-    --metadata-out        "${ATB_METADATA}" \
-    --controls-out        "${CONTROLS_GENUS_MAP}" \
-    --tar-cache           "${ATB_TARBALL_CACHE}"
+    --outdir-archaea  "${GENOMES_ARCHAEA_DIR}" \
+    --metadata-out    "${ATB_METADATA}" \
+    --fasta-list-out  "${ARCHAEA_FASTA_LIST}" \
+    --tar-cache       "${ATB_TARBALL_CACHE}"
 
+echo
 echo "--- summary ---"
-N_ARCH=$(find "${GENOMES_ARCHAEA_DIR}"  -maxdepth 1 -name "*.fa*" 2>/dev/null | wc -l)
-N_CTRL=$(find "${GENOMES_CONTROLS_DIR}" -maxdepth 1 -name "*.fa*" 2>/dev/null | wc -l)
-echo "archaea fastas : ${N_ARCH}"
-echo "controls fastas: ${N_CTRL}"
+N=$(find "${GENOMES_ARCHAEA_DIR}" -maxdepth 1 -name "*.fa*" 2>/dev/null | wc -l)
+echo "archaea fastas : ${N}"
+echo "metadata       : $(wc -l < "${ATB_METADATA}") lines"
+echo "fasta_list     : $(wc -l < "${ARCHAEA_FASTA_LIST}") entries"
+
+if [[ -n "${CONTROLS_SPECIES_TSV}" && -f "${CONTROLS_SPECIES_TSV}" ]]; then
+  echo "(controls download is not handled by this stage - supply your own controls FASTAs in ${GENOMES_CONTROLS_DIR})"
+fi
