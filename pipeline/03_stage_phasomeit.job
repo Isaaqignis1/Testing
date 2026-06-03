@@ -1,10 +1,11 @@
 #!/bin/bash --login
-# Stage:    03 — Stage PhasomeIt input folders
-# Purpose:  Copy per-genus .gbk files into PHASOME_ARCHAEA_BASE/<genus>/ for PhasomeIt.
+# Stage:    03 — Stage PhasomeIt input
+# Purpose:  Build per-genus <Genus>_gffs.txt from filtered species calls + Prokka outputs, then copy .gbk files into PHASOME_ARCHAEA_BASE/<genus>/.
 # Walltime: 1h
 # Depends:  02
-# Inputs:   GFF_LISTS_DIR/<Genus>_gffs.txt, PROKKA_OUT
-# Outputs:  PHASOME_ARCHAEA_BASE/<genus>/*.gbk, PHASOME_ARCHAEA_BASE/_genus_dirs.txt
+# Inputs:   SPECIES_CALLS_DIR/SpeciesCallsArchaea.csv (stage 01), PROKKA_OUT (stage 02)
+# Outputs:  GFF_LISTS_DIR/<Genus>_gffs.txt, PHASOME_ARCHAEA_BASE/<genus>/*.gbk, PHASOME_ARCHAEA_BASE/_genus_dirs.txt
+# Notes:    Combines the old 02 second-half (gff-list build) with the gbk staging.
 
 #SBATCH -p multicore
 #SBATCH -n 2
@@ -13,25 +14,34 @@
 
 set -euo pipefail
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-# shellcheck disable=SC1091
 source "${HERE}/../config.sh"
 
 module purge
 [[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
 conda activate "${ENV_PHASOMEIT}"
 
+mkdir -p "${GFF_LISTS_DIR}"
+
+# 1. build per-genus gff lists from filtered samples + Prokka outputs
+python "${REPO_ROOT}/scripts/dataset/build_genus_gff_lists.py" \
+    --species-calls "${SPECIES_CALLS_DIR}/SpeciesCallsArchaea.csv" \
+    --prokka-dir    "${PROKKA_OUT}" \
+    --out-dir       "${GFF_LISTS_DIR}"
+
+# 2. stage the .gbk files into per-genus folders
 python "${REPO_ROOT}/scripts/phasomeit/setup_archaea.py" \
     --in-dir   "${GFF_LISTS_DIR}" \
     --out-root "${PHASOME_ARCHAEA_BASE}"
 
-if [[ -f "${CONTROLS_SPECIES_TSV}" ]]; then
+# 3. controls (optional, only if a mapping is provided)
+if [[ -f "${CONTROLS_SPECIES_TSV}" && -d "${PROKKA_CTRL_OUT}" ]]; then
   python "${REPO_ROOT}/scripts/phasomeit/setup_controls.py" \
       --prokka-dir "${PROKKA_CTRL_OUT}" \
       --mapping    "${CONTROLS_SPECIES_TSV}" \
       --out-root   "${PHASOME_CONTROLS_BASE}"
 fi
 
-# build the per-genus list files consumed by stage 04
+# 4. write _genus_dirs.txt lists used by stage 04
 find "${PHASOME_ARCHAEA_BASE}"  -mindepth 1 -maxdepth 1 -type d ! -name "_*" | sort > "${PHASOME_ARCHAEA_BASE}/_genus_dirs.txt"
 [[ -d "${PHASOME_CONTROLS_BASE}" ]] && \
   find "${PHASOME_CONTROLS_BASE}" -mindepth 1 -maxdepth 1 -type d ! -name "_*" | sort > "${PHASOME_CONTROLS_BASE}/_genus_dirs.txt"

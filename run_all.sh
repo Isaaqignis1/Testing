@@ -17,19 +17,19 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 
-STAGES="00_download 01_prokka 02_dataset 03_stage_phasomeit 04_phasomeit 05_parse_phasomeit 06_eggnog_db 07_eggnog_merge 08_eggnog_archaea 09_eggnog_bacteria 10_post_eggnog 11_quantify 12_tract_variation 13_figures"
+STAGES="00_download 01_dataset 02_prokka 03_stage_phasomeit 04_phasomeit 05_parse_phasomeit 06_eggnog_db 07_eggnog_merge 08_eggnog_archaea 09_eggnog_bacteria 10_post_eggnog 11_quantify 12_tract_variation 13_figures"
 
 # stage dependencies
 deps_of() {
   case "$1" in
     00_download)         echo "" ;;
-    01_prokka)           echo "00_download" ;;
-    02_dataset)          echo "01_prokka" ;;
-    03_stage_phasomeit)  echo "02_dataset" ;;
+    01_dataset)          echo "00_download" ;;
+    02_prokka)           echo "01_dataset" ;;
+    03_stage_phasomeit)  echo "02_prokka" ;;
     04_phasomeit)        echo "03_stage_phasomeit" ;;
     05_parse_phasomeit)  echo "04_phasomeit" ;;
     06_eggnog_db)        echo "" ;;
-    07_eggnog_merge)     echo "01_prokka" ;;
+    07_eggnog_merge)     echo "02_prokka" ;;
     08_eggnog_archaea)   echo "06_eggnog_db 07_eggnog_merge" ;;
     09_eggnog_bacteria)  echo "06_eggnog_db 07_eggnog_merge" ;;
     10_post_eggnog)      echo "05_parse_phasomeit 08_eggnog_archaea 09_eggnog_bacteria" ;;
@@ -45,16 +45,17 @@ preflight() {
     00_download)
       [ -f "$ARCHAEA_GENERA_FILE" ] || { echo "  missing: ARCHAEA_GENERA_FILE = $ARCHAEA_GENERA_FILE" >&2; return 1; }
       ;;
-    01_prokka)
-      [ -f "$ARCHAEA_FASTA_LIST" ] || { echo "  missing: ARCHAEA_FASTA_LIST = $ARCHAEA_FASTA_LIST  (stage 00 not run?)" >&2; return 1; }
-      [ -s "$ARCHAEA_FASTA_LIST" ] || { echo "  empty:   $ARCHAEA_FASTA_LIST" >&2; return 1; }
-      ;;
-    02_dataset)
+    01_dataset)
       [ -f "$ATB_METADATA" ] || { echo "  missing: ATB_METADATA  (stage 00)" >&2; return 1; }
-      [ -d "$PROKKA_OUT" ]   || { echo "  missing: PROKKA_OUT    (stage 01)" >&2; return 1; }
+      [ -f "${REPO_ROOT}/standards/contaminants.txt" ] || { echo "  missing: standards/contaminants.txt" >&2; return 1; }
+      ;;
+    02_prokka)
+      [ -f "${INPUTS_DIR}/archaea/filtered_fasta_list.txt" ] || { echo "  missing: filtered_fasta_list.txt  (stage 01 not run?)" >&2; return 1; }
+      [ -s "${INPUTS_DIR}/archaea/filtered_fasta_list.txt" ] || { echo "  empty:   filtered_fasta_list.txt" >&2; return 1; }
       ;;
     03_stage_phasomeit)
-      [ -d "$GFF_LISTS_DIR" ] || { echo "  missing: GFF_LISTS_DIR  (stage 02)" >&2; return 1; }
+      [ -f "${SPECIES_CALLS_DIR}/SpeciesCallsArchaea.csv" ] || { echo "  missing: SpeciesCallsArchaea.csv  (stage 01)" >&2; return 1; }
+      [ -d "$PROKKA_OUT" ] || { echo "  missing: PROKKA_OUT  (stage 02)" >&2; return 1; }
       ;;
     04_phasomeit)
       [ -f "$PHASOME_ARCHAEA_BASE/_genus_dirs.txt" ] || { echo "  missing: $PHASOME_ARCHAEA_BASE/_genus_dirs.txt  (stage 03)" >&2; return 1; }

@@ -1,0 +1,55 @@
+#!/bin/bash --login
+# Stage:    01 — Per-species filter
+# Purpose:  Apply MIN_PER_SPECIES threshold + contaminant drop. Builds SpeciesCallsArchaea.csv (the surviving sample list).
+# Walltime: 30m
+# Depends:  00
+# Inputs:   ATB_METADATA (stage 00), standards/contaminants.txt
+# Outputs:  SPECIES_CALLS_DIR/{SpeciesCallsArchaea.csv,species_count_summary.csv,genus_count_summary.csv}, INPUTS_DIR/archaea/filtered_fasta_list.txt
+# Notes:    Inspect species_count_summary.csv before stage 02 (Prokka) so you don't annotate dropouts.
+
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -t 00:30:00
+#SBATCH -J dataset
+
+set -euo pipefail
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+source "${HERE}/../config.sh"
+
+module purge
+[[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
+conda activate "${ENV_PHASOMEIT}"
+
+mkdir -p "${SPECIES_CALLS_DIR}"
+
+python "${REPO_ROOT}/scripts/dataset/build_species_calls.py" \
+    --meta              "${ATB_METADATA}" \
+    --out-dir           "${SPECIES_CALLS_DIR}" \
+    --min-per-species   "${MIN_PER_SPECIES}" \
+    --contaminants-file "${REPO_ROOT}/standards/contaminants.txt"
+
+# Build the FASTA list for stage 02 (Prokka). One filename per surviving sample.
+# Sample IDs from column 1 of SpeciesCallsArchaea.csv → match against GENOMES_ARCHAEA_DIR.
+FILTERED_LIST="${INPUTS_DIR}/archaea/filtered_fasta_list.txt"
+: > "${FILTERED_LIST}"
+N_MATCHED=0
+N_MISSING=0
+tail -n +2 "${SPECIES_CALLS_DIR}/SpeciesCallsArchaea.csv" | cut -d',' -f1 | while read -r sid; do
+  # try common extensions
+  for ext in fa fasta fna fa.gz fasta.gz fna.gz; do
+    f="${GENOMES_ARCHAEA_DIR}/${sid}.${ext}"
+    if [ -f "$f" ]; then echo "${sid}.${ext}" >> "${FILTERED_LIST}"; break; fi
+  done
+done
+N_MATCHED=$(wc -l < "${FILTERED_LIST}")
+N_SAMPLES=$(($(wc -l < "${SPECIES_CALLS_DIR}/SpeciesCallsArchaea.csv") - 1))
+N_MISSING=$((N_SAMPLES - N_MATCHED))
+
+echo
+echo "--- summary ---"
+echo "samples after filter : ${N_SAMPLES}"
+echo "matched to FASTA     : ${N_MATCHED}"
+echo "missing FASTA        : ${N_MISSING}"
+echo "filtered list        : ${FILTERED_LIST}"
+echo
+echo "review ${SPECIES_CALLS_DIR}/species_count_summary.csv before stage 02"

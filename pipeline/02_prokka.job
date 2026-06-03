@@ -1,0 +1,67 @@
+#!/bin/bash --login
+# Stage:    02 — Prokka annotation (array)
+# Purpose:  Annotate every SURVIVING FASTA with Prokka (--kingdom Archaea). Skips samples dropped by stage 01.
+# Walltime: 24h per task
+# Depends:  01
+# Inputs:   INPUTS_DIR/archaea/filtered_fasta_list.txt (stage 01)
+# Outputs:  PROKKA_OUT/<sample>/<sample>.{gff,gbk,faa}
+# Notes:    Array job; first invocation prints the -a 1-N spec, then re-submit with that range.
+
+#SBATCH -p multicore
+#SBATCH -n 4
+#SBATCH -t 1-0
+#SBATCH -J prokka
+
+set -euo pipefail
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+source "${HERE}/../config.sh"
+
+module purge
+[[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
+conda activate "${ENV_PROKKA}"
+
+LIST="${INPUTS_DIR}/archaea/filtered_fasta_list.txt"
+if [ ! -s "$LIST" ]; then
+  echo "ERROR: $LIST is missing or empty - has stage 01 run?" >&2
+  exit 1
+fi
+
+# --- no array index set: print the submit command and exit ---------------
+if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
+  N=$(wc -l < "$LIST")
+  echo "  filtered list has ${N} samples"
+  echo "  submit with: sbatch -a 1-${N}%50 \\"
+  echo "    --output=${LOGS_DIR}/02_prokka_%A_%a.out \\"
+  echo "    --error=${LOGS_DIR}/02_prokka_%A_%a.err \\"
+  echo "    pipeline/02_prokka.job"
+  echo "  (run_all.sh handles this automatically)"
+  exit 0
+fi
+
+# --- array task: process one fasta ---------------------------------------
+FA_NAME=$(awk "NR==${SLURM_ARRAY_TASK_ID}" "$LIST")
+FA="${GENOMES_ARCHAEA_DIR}/${FA_NAME}"
+
+BASE=$(basename "${FA_NAME}")
+BASE=${BASE%.gz}; BASE=${BASE%.fa}; BASE=${BASE%.fna}; BASE=${BASE%.fasta}
+
+mkdir -p "${PROKKA_OUT}"
+
+if [[ -s "${PROKKA_OUT}/${BASE}/${BASE}.gff" ]]; then
+  echo "skip: ${BASE} already annotated"
+  exit 0
+fi
+
+# Prokka needs uncompressed input
+WORK="$(mktemp -d)"
+trap 'rm -rf "${WORK}"' EXIT
+INFA="${WORK}/${BASE}.fa"
+if [[ "${FA}" == *.gz ]]; then zcat "${FA}" > "${INFA}"; else cp "${FA}" "${INFA}"; fi
+
+prokka \
+  --outdir   "${PROKKA_OUT}/${BASE}" \
+  --prefix   "${BASE}" \
+  --kingdom  Archaea \
+  --compliant \
+  --cpus     "${SLURM_CPUS_ON_NODE:-${SLURM_NTASKS:-4}}" \
+  "${INFA}"
