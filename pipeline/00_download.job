@@ -1,6 +1,12 @@
 #!/bin/bash --login
-# stage 00 - download AllTheBacteria archaeal assemblies from OSF.
-# Two URLs, one tarball, ~154 MB. No big ATB index needed.
+# Stage:    00 — ATB download
+# Purpose:  Pull the 818 archaeal FASTAs and species_calls.tsv.gz from OSF (single ~154 MB tarball).
+# Walltime: 4h
+# Depends:  none
+# Inputs:   OSF nehtp node (argkq + nypmt)
+# Outputs:  GENOMES_ARCHAEA_DIR/*.fa, ATB_METADATA, ARCHAEA_FASTA_LIST
+# Notes:    Idempotent; existing tarball/extracted files are kept.
+
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -t 4:00:00

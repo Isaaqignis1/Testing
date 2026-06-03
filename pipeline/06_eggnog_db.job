@@ -1,6 +1,12 @@
 #!/bin/bash --login
-# stage 06 — one-off download of the eggnog v5 reference database.
-# Heavy (~50 GB). Idempotent: existing files are kept.
+# Stage:    06 — eggnog reference db download (one-off)
+# Purpose:  Download the eggnog v5 reference database (~50 GB).
+# Walltime: 8h
+# Depends:  none
+# Inputs:   none
+# Outputs:  EGGNOG_DB_DIR/{eggnog.db,*.dmnd,...}
+# Notes:    Run once per cluster install; remains for future pipeline runs.
+
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -c 4

@@ -1,6 +1,11 @@
 #!/bin/bash --login
-# stage 11 — quantification: per-genome PV counts, genome sizes, PV/Mb,
-# per-strain and per-genus rollups.
+# Stage:    11 — PV counts + PV/Mb
+# Purpose:  Per-genome PV count, genome size, PV per Mb (per genome and per genus).
+# Walltime: 1h
+# Depends:  05
+# Inputs:   PHASOME_*_BASE, EXTRACTION_DIR/*/phasomeit_group_summary.csv
+# Outputs:  QUANT_DIR/{genome_lengths_*.csv,pv_per_fasta.csv,pv_per_mb_per_genome.csv,pv_per_mb_per_genus.csv}
+
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -t 1:00:00

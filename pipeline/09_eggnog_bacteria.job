@@ -1,5 +1,11 @@
 #!/bin/bash --login
-# stage 09 — eggnog-mapper on the bacterial control proteome, default tax scope.
+# Stage:    09 — eggnog-mapper on bacteria controls
+# Purpose:  Run emapper on the bacterial control proteome, default tax scope.
+# Walltime: 36h
+# Depends:  06, 07
+# Inputs:   EGGNOG_DIR/input/bacteria_merged.faa, EGGNOG_DB_DIR
+# Outputs:  EGGNOG_DIR/output/bacteria.emapper.{annotations,hits,seed_orthologs}
+
 #SBATCH -p multicore
 #SBATCH -n 1
 #SBATCH -c 16

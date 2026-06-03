@@ -1,6 +1,11 @@
 #!/bin/bash --login
-# stage 12 — within-species tract-length variation across strains, per
-# gene group (method follow-up from Section 4.4 of the report).
+# Stage:    12 — Within-species tract-length variation
+# Purpose:  Per (genus, species, gene group): does the SSR tract length actually vary across strains? (method follow-up, report section 4.4)
+# Walltime: 1h
+# Depends:  05
+# Inputs:   EXTRACTION_DIR/phasomeit_tract_data.csv, SPECIES_CALLS_DIR/SpeciesCallsArchaea.csv
+# Outputs:  ANALYSIS_DIR/{tract_length_variation_per_group.csv,tract_length_variation_per_genus.csv}
+
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -t 1:00:00

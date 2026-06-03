@@ -1,6 +1,12 @@
 #!/bin/bash --login
-# stage 08 — eggnog-mapper on the archaeal proteome, tax_scope Archaea (2157)
-# to recover arCOG cross-references for downstream locus linking.
+# Stage:    08 — eggnog-mapper on archaea
+# Purpose:  Run emapper on the archaeal proteome with --tax_scope Archaea (recovers arCOGs).
+# Walltime: 72h
+# Depends:  06, 07
+# Inputs:   EGGNOG_DIR/input/archaea_merged.faa, EGGNOG_DB_DIR
+# Outputs:  EGGNOG_DIR/output/archaea.emapper.{annotations,hits,seed_orthologs}
+# Notes:    16 cpus by default; bump if OOM.
+
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -c 16

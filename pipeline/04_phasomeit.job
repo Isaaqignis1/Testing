@@ -1,12 +1,12 @@
 #!/bin/bash --login
-# stage 04 — run PhasomeIt on every genus directory staged in stage 03.
-# One array task per genus. Submit once for archaea, once for controls,
-# selecting the LIST via --export.
-#
-# cutoffs from original phasomeit paper: mono>=7, di>=6, tri excluded, tetra+ >=5
-#
-# Without SLURM_ARRAY_TASK_ID set, this script auto-detects the LIST size
-# and prints the array submission command (analogous to 01_prokka.job).
+# Stage:    04 — PhasomeIt per genus (array)
+# Purpose:  Run PhasomeIt on each genus folder; cutoffs -c 7 6 0 5 5 (paper defaults).
+# Walltime: 6h per task
+# Depends:  03
+# Inputs:   PHASOME_ARCHAEA_BASE/<genus>/*.gbk
+# Outputs:  PHASOME_ARCHAEA_BASE/<genus>/summary_tracts/
+# Notes:    Array; first invocation prints -a 1-N. Submit per LIST for archaea vs controls.
+
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -c 8

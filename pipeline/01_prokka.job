@@ -1,7 +1,12 @@
 #!/bin/bash --login
-# stage 01 — annotate every downloaded fasta with Prokka.
-# Uses an array job, one task per fasta. Reads the fasta-list files produced
-# by stage 00. Array size is set dynamically by reading the list length.
+# Stage:    01 — Prokka annotation (array)
+# Purpose:  Annotate every FASTA with Prokka in --kingdom Archaea mode.
+# Walltime: 24h per task
+# Depends:  00
+# Inputs:   GENOMES_ARCHAEA_DIR/*.fa (+ optional controls), ARCHAEA_FASTA_LIST
+# Outputs:  PROKKA_OUT/<sample>/<sample>.{gff,gbk,faa}
+# Notes:    Array job; first invocation prints the -a 1-N spec, then re-submit with that range.
+
 #SBATCH -p multicore
 #SBATCH -n 4
 #SBATCH -t 1-0

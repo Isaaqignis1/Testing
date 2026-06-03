@@ -1,5 +1,11 @@
 #!/bin/bash --login
-# stage 07 — concatenate per-genome Prokka .faa files into per-domain FASTAs.
+# Stage:    07 — Merge per-genome proteomes
+# Purpose:  Concatenate all Prokka .faa files into one per-domain FASTA, prepending sample id to each header.
+# Walltime: 4h
+# Depends:  01
+# Inputs:   PROKKA_OUT/<sample>/<sample>.faa (and controls)
+# Outputs:  EGGNOG_DIR/input/{archaea_merged.faa,bacteria_merged.faa}
+
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -t 4:00:00

@@ -1,6 +1,11 @@
 #!/bin/bash --login
-# stage 05 — parse PhasomeIt HTML for both runs and build the unified
-# group summary + Prokka function ranking.
+# Stage:    05 — Parse PhasomeIt HTML
+# Purpose:  Turn PhasomeIt HTML output into structured CSVs + Prokka function ranking.
+# Walltime: 6h
+# Depends:  04
+# Inputs:   PHASOME_ARCHAEA_BASE/<genus>/summary_tracts/
+# Outputs:  EXTRACTION_DIR/{archaea,controls}/{phasomeit_group_summary,phasomeit_annotated_functions,phasomeit_members,phasomeit_pairwise}.csv, EXTRACTION_DIR/phasomeit_tract_data.csv, EXTRACTION_DIR/phasomeit_full_group_summary.csv
+
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -t 6:00:00

@@ -1,5 +1,12 @@
 #!/bin/bash --login
-# stage 02 — build the per-species filtered call table + per-genus gff lists.
+# Stage:    02 — Per-species filter + gff lists
+# Purpose:  Drop contaminants, apply MIN_PER_SPECIES threshold, build <Genus>_gffs.txt files.
+# Walltime: 30m
+# Depends:  01
+# Inputs:   ATB_METADATA, standards/contaminants.txt, PROKKA_OUT
+# Outputs:  SPECIES_CALLS_DIR/{SpeciesCallsArchaea.csv,species_count_summary.csv,genus_count_summary.csv}, GFF_LISTS_DIR/<Genus>_gffs.txt
+# Notes:    Inspect species_count_summary.csv before stage 03 to see what dropped out.
+
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -t 00:30:00

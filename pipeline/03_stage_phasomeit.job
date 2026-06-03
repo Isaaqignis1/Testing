@@ -1,6 +1,11 @@
 #!/bin/bash --login
-# stage 03 — stage per-genus folders of .gbk files for PhasomeIt input,
-# both the archaeal main set and the bacterial controls.
+# Stage:    03 — Stage PhasomeIt input folders
+# Purpose:  Copy per-genus .gbk files into PHASOME_ARCHAEA_BASE/<genus>/ for PhasomeIt.
+# Walltime: 1h
+# Depends:  02
+# Inputs:   GFF_LISTS_DIR/<Genus>_gffs.txt, PROKKA_OUT
+# Outputs:  PHASOME_ARCHAEA_BASE/<genus>/*.gbk, PHASOME_ARCHAEA_BASE/_genus_dirs.txt
+
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -t 1:00:00

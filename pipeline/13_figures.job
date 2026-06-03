@@ -1,6 +1,12 @@
 #!/bin/bash --login
-# stage 13 — build master tables and produce figures 1-4 plus the
-# supplementary top-Prokka-functions figure.
+# Stage:    13 — Figures + master tables
+# Purpose:  Build master_strains/groups; produce Figures 1-4 + supplementary as PDF + PNG.
+# Walltime: 2h
+# Depends:  10, 11, 12
+# Inputs:   EXTRACTION_DIR, CLEANED_DIR, QUANT_DIR, SPECIES_CALLS_DIR, standards/colors.py
+# Outputs:  FIGURES_DIR/{master_strains.csv,master_groups.csv,fig1_*,fig2_*,fig3*_*,fig4*_*,supp_top_prokka_functions.*}
+# Notes:    Re-run alone (run_all.sh --only 13) after editing colors.py or plot scripts.
+
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -t 2:00:00

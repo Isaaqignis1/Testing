@@ -1,6 +1,11 @@
 #!/bin/bash --login
-# stage 10 — parse emapper outputs + link PhasomeIt PV members to eggnog
-# annotations by locus_tag.
+# Stage:    10 — eggnog post-processing + linking
+# Purpose:  Parse emapper outputs into tidy tables and link PV gene members to COG/arCOG annotations.
+# Walltime: 2h
+# Depends:  05, 08, 09
+# Inputs:   EGGNOG_DIR/output/*.emapper.annotations, EXTRACTION_DIR/*/phasomeit_members.csv
+# Outputs:  CLEANED_DIR/{all_annotations.tsv,archaea_annotations_clean.tsv,per_sample_COG_summary.tsv,per_genus_broad_role_normalised.tsv,Mapped_functions/*}
+
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -t 2:00:00
