@@ -30,9 +30,24 @@ done
 
 # 1. config.sh
 if [ ! -f config.sh ]; then
-  cp config.sh.example config.sh
-  echo "[setup] created config.sh from config.sh.example"
-  echo "        edit it if you want non-default paths/envs."
+  cat > config.sh <<'EOF'
+#!/bin/bash
+# config.sh - your local pipeline configuration.
+# defaults come from config.sh.example (sourced first; never edit it).
+# put YOUR overrides below the line. anything not overridden uses the default.
+#
+# examples:
+#   SCRATCH_ROOT="${HOME}/somewhere_else"
+#   MIN_PER_SPECIES=3
+#   ENV_PHASOMEIT="ar"
+
+source "$(dirname "${BASH_SOURCE[0]}")/config.sh.example"
+
+# ===== YOUR OVERRIDES BELOW =====
+
+EOF
+  echo "[setup] created minimal config.sh that sources the example."
+  echo "        add overrides below the marker line if you need any."
 else
   echo "[setup] config.sh already exists"
 fi

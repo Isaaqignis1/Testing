@@ -110,12 +110,19 @@ while [ $# -gt 0 ]; do
 done
 
 need_config() {
-  if [ ! -f "$REPO_ROOT/config.sh" ]; then
-    echo "config.sh missing - run: cp config.sh.example config.sh" >&2
+  # config.sh.example always wins for defaults; config.sh overrides on top.
+  # This way new vars added to config.sh.example are picked up without
+  # editing every existing config.sh.
+  if [ ! -f "$REPO_ROOT/config.sh.example" ]; then
+    echo "config.sh.example missing from repo — broken checkout?" >&2
     exit 2
   fi
   # shellcheck disable=SC1091
-  source "$REPO_ROOT/config.sh"
+  source "$REPO_ROOT/config.sh.example"
+  if [ -f "$REPO_ROOT/config.sh" ]; then
+    # shellcheck disable=SC1091
+    source "$REPO_ROOT/config.sh"
+  fi
   mkdir -p "$LOGS_DIR" "$MARKERS_DIR"
 }
 
@@ -325,6 +332,8 @@ cmd_submit() {
 
     if [ -n "$ONLY" ] || [ "$NEXT" -eq 1 ]; then break; fi
   done
+
+  echo
 
   echo
   echo "logs   : $LOGS_DIR"
