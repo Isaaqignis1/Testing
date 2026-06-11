@@ -13,8 +13,9 @@
 #SBATCH -J stage_phasomeit
 
 set -euo pipefail
-HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-source "${HERE}/../config.sh"
+: "${REPO_ROOT:?REPO_ROOT must be passed via sbatch --export}"
+source "${REPO_ROOT}/config.sh.example"
+[ -f "${REPO_ROOT}/config.sh" ] && source "${REPO_ROOT}/config.sh"
 
 module purge
 [[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"

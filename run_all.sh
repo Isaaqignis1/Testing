@@ -297,7 +297,7 @@ submit_one() {
     return 1
   fi
 
-  local args=(--output="$lout" --error="$lerr" "$job")
+  local args=(--export="ALL,REPO_ROOT=$REPO_ROOT" --output="$lout" --error="$lerr" "$job")
   [ -n "$dep_jid" ] && args=(--dependency=afterok:"$dep_jid" "${args[@]}")
 
   local jid; jid=$(sbatch_run "$stage" "${args[@]}")
@@ -311,12 +311,12 @@ submit_one() {
     --dependency=afterok:"$jid"
     --output="$LOGS_DIR/marker_${stage}_%j.out"
     --error="$LOGS_DIR/marker_${stage}_%j.err"
-    --export="ALL,STAGE_NAME=${stage}"
+    --export="ALL,REPO_ROOT=$REPO_ROOT,STAGE_NAME=${stage}"
     "$REPO_ROOT/pipeline/_marker.job"
   )
   local mjid; mjid=$(sbatch_run "marker_${stage}" "${mark_args[@]}")
 
-  printf "  submitted %-22s  jobid=%-12s  marker=%s\n" "$stage" "$jid" "$mjid"
+  printf "  submitted %-22s  jobid=%-12s  marker=%s\n" "$stage" "$jid" "$mjid" >&2
   echo "$mjid"   # downstream stages depend on the MARKER job, not the work job
 }
 
@@ -356,6 +356,7 @@ cmd_submit() {
   echo "markers: $MARKERS_DIR"
   echo "watch  : bash run_all.sh --status"
 }
+
 
 
 # dispatch -----------------------------------------------------------------

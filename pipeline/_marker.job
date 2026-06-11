@@ -1,11 +1,10 @@
 #!/bin/bash --login
 # Stage:    -- (internal helper)
-# Purpose:  Touch a per-stage completion marker. Submitted by run_all.sh with --dependency=afterok:<work_jid>.
+# Purpose:  Touch a per-stage completion marker. Submitted by run_all.sh with --dependency=afterok.
 # Walltime: 1h
 # Depends:  the work job for ${STAGE_NAME}
-# Inputs:   env var STAGE_NAME passed via --export
+# Inputs:   env vars REPO_ROOT + STAGE_NAME passed via --export
 # Outputs:  ${MARKERS_DIR}/${STAGE_NAME}.done
-# Notes:    Real .job file (no --wrap), so it submits cleanly on CSF.
 
 #SBATCH -p multicore
 #SBATCH -n 2
@@ -13,11 +12,11 @@
 #SBATCH -J marker
 
 set -euo pipefail
-HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-source "${HERE}/../config.sh.example"
-[ -f "${HERE}/../config.sh" ] && source "${HERE}/../config.sh"
+: "${REPO_ROOT:?REPO_ROOT must be passed via sbatch --export}"
+: "${STAGE_NAME:?STAGE_NAME must be passed via sbatch --export}"
 
-: "${STAGE_NAME:?STAGE_NAME env var must be passed via sbatch --export}"
+source "${REPO_ROOT}/config.sh.example"
+[ -f "${REPO_ROOT}/config.sh" ] && source "${REPO_ROOT}/config.sh"
 
 mkdir -p "${MARKERS_DIR}"
 touch "${MARKERS_DIR}/${STAGE_NAME}.done"
