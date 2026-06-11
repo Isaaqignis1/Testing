@@ -2,15 +2,17 @@
 # setup.sh - one-off setup. Safe to re-run.
 #   1. write config.sh from the example (only if missing)
 #   2. clone PhasomeIt into PHASOMEIT_REPO (only if missing)
-#   3. create the three conda envs from envs/*.yml if they do not exist yet
+#   3. create the three conda envs from envs/*.yml, OR update them to match
+#      the yaml if they already exist (yaml is the source of truth).
 #
 # Conda envs live wherever conda already keeps them, NOT inside the repo.
 # Data dirs live on scratch (see config.sh), NOT inside the repo.
 #
 # usage:
 #   bash setup.sh
-#   bash setup.sh --skip-envs    # only clone PhasomeIt + write config
-#   bash setup.sh --skip-clone   # only create envs
+#   bash setup.sh --skip-envs        # only clone PhasomeIt + write config
+#   bash setup.sh --skip-clone       # only handle envs
+#   bash setup.sh --no-update-envs   # create missing envs but DON'T touch existing ones
 
 set -euo pipefail
 
@@ -19,11 +21,13 @@ cd "$REPO_ROOT"
 
 SKIP_ENVS=0
 SKIP_CLONE=0
+NO_UPDATE_ENVS=0
 for a in "$@"; do
   case "$a" in
-    --skip-envs)  SKIP_ENVS=1 ;;
-    --skip-clone) SKIP_CLONE=1 ;;
-    -h|--help)    sed -n '2,12p' "$0"; exit 0 ;;
+    --skip-envs)      SKIP_ENVS=1 ;;
+    --skip-clone)     SKIP_CLONE=1 ;;
+    --no-update-envs) NO_UPDATE_ENVS=1 ;;
+    -h|--help)        sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "unknown arg: $a"; exit 2 ;;
   esac
 done
@@ -81,19 +85,24 @@ if [ "$SKIP_ENVS" -eq 0 ]; then
   fi
   source "$(conda info --base)/etc/profile.d/conda.sh"
 
-  create_env_if_missing() {
+  ensure_env() {
     local name="$1"
     local yml="$2"
     if conda env list | awk '{print $1}' | grep -qx "$name"; then
-      echo "[setup] env '$name' already exists"
+      if [ "$NO_UPDATE_ENVS" -eq 1 ]; then
+        echo "[setup] env '$name' exists - leaving alone (--no-update-envs)"
+      else
+        echo "[setup] env '$name' exists - syncing to $yml (conda env update --prune)"
+        conda env update -n "$name" -f "$REPO_ROOT/$yml" --prune
+      fi
     else
       echo "[setup] creating env '$name' from $yml"
       conda env create -n "$name" -f "$REPO_ROOT/$yml"
     fi
   }
-  create_env_if_missing "$ENV_PROKKA"    "envs/prokka.yml"
-  create_env_if_missing "$ENV_PHASOMEIT" "envs/phasome.yml"
-  create_env_if_missing "$ENV_EGGNOG"    "envs/eggnog.yml"
+  ensure_env "$ENV_PROKKA"    "envs/prokka.yml"
+  ensure_env "$ENV_PHASOMEIT" "envs/phasome.yml"
+  ensure_env "$ENV_EGGNOG"    "envs/eggnog.yml"
 fi
 
 # 4. ensure scratch dirs
