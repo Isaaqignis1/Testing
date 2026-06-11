@@ -275,8 +275,14 @@ cmd_reset() {
 
 # verb: submit -------------------------------------------------------------
 sbatch_run() {
-  if [ "$DRYRUN" -eq 1 ]; then echo "DRY  $*" >&2; echo "DRY_$1"
-  else sbatch --parsable "$@"; fi
+  # first arg is a label used only for the dry-run fake-jid output
+  local label="$1"; shift
+  if [ "$DRYRUN" -eq 1 ]; then
+    echo "DRY  sbatch $*" >&2
+    echo "DRY_${label}"
+  else
+    sbatch --parsable "$@"
+  fi
 }
 
 submit_one() {
@@ -294,11 +300,21 @@ submit_one() {
   local args=(--output="$lout" --error="$lerr" "$job")
   [ -n "$dep_jid" ] && args=(--dependency=afterok:"$dep_jid" "${args[@]}")
 
-  local jid; jid=$(sbatch_run "${args[@]}")
+  local jid; jid=$(sbatch_run "$stage" "${args[@]}")
 
-  # marker job: depend on jid, just touch the marker
-  local mark_args=(--dependency=afterok:"$jid" --output="$LOGS_DIR/marker_${stage}_%j.out" --error="$LOGS_DIR/marker_${stage}_%j.err" --wrap="mkdir -p '$MARKERS_DIR' && touch '$marker' && echo done")
-  local mjid; mjid=$(sbatch_run "${mark_args[@]}")
+  # marker job: short, single-task, depends on jid, just touches the marker.
+  # CSF requires an explicit partition + walltime even for tiny --wrap jobs.
+  # Marker step is a real .job file (no --wrap), submitted with the stage
+  # name passed via --export so the .job knows which marker to touch.
+  local mark_args=(
+    -J "marker_${stage}"
+    --dependency=afterok:"$jid"
+    --output="$LOGS_DIR/marker_${stage}_%j.out"
+    --error="$LOGS_DIR/marker_${stage}_%j.err"
+    --export="ALL,STAGE_NAME=${stage}"
+    "$REPO_ROOT/pipeline/_marker.job"
+  )
+  local mjid; mjid=$(sbatch_run "marker_${stage}" "${mark_args[@]}")
 
   printf "  submitted %-22s  jobid=%-12s  marker=%s\n" "$stage" "$jid" "$mjid"
   echo "$mjid"   # downstream stages depend on the MARKER job, not the work job
@@ -341,12 +357,13 @@ cmd_submit() {
   echo "watch  : bash run_all.sh --status"
 }
 
+
 # dispatch -----------------------------------------------------------------
 case "$CMD" in
-  info)   cmd_info ;;
+  info)   cmd_info   ;;
   status) cmd_status ;;
-  check)  cmd_check ;;
-  logs)   cmd_logs ;;
-  reset)  cmd_reset ;;
+  check)  cmd_check  ;;
+  logs)   cmd_logs   ;;
+  reset)  cmd_reset  ;;
   *)      cmd_submit ;;
 esac
