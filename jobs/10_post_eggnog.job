@@ -1,0 +1,52 @@
+#!/bin/bash --login
+# Stage 10: eggNOG post-processing + linking
+#
+# Purpose:    Parse emapper output into tidy per-sample / per-genus tables
+#             and link PV gene members back to their COG / arCOG annotations.
+# Inputs:     OUTPUTS/05_eggnog/output/{archaea,bacteria}.emapper.annotations  (stages 08, 09)
+#             OUTPUTS/04_extraction/{archaea,controls}/phasomeit_members.csv   (stage 05)
+# Outputs:    OUTPUTS/06_cleaned/all_annotations.tsv
+#             OUTPUTS/06_cleaned/archaea_annotations_clean.tsv
+#             OUTPUTS/06_cleaned/per_sample_COG_summary.tsv
+#             OUTPUTS/06_cleaned/per_genus_broad_role_normalised.tsv
+#             OUTPUTS/06_cleaned/Mapped_functions/phasomeit_eggnog_linked.tsv
+# Wall time:  ~2h
+# Depends on: stages 05, 08, 09.
+#
+# Submit:
+#   bash submit.sh jobs/10_post_eggnog.job
+
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -t 2:00:00
+#SBATCH -J 10_post_eggnog
+
+set -euo pipefail
+: "${REPO_ROOT:?REPO_ROOT must be passed via sbatch --export. See README.}"
+source "${REPO_ROOT}/config.sh"
+
+module purge
+[ -n "${CONDA_MODULE}" ] && module load "${CONDA_MODULE}"
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate "${ENV_EGGNOG}"
+
+mkdir -p "${CLEANED_DIR}/Mapped_functions"
+
+python "${REPO_ROOT}/scripts/eggnog/parse_eggnog.py" \
+    --archaea            "${EGGNOG_DIR}/output/archaea.emapper.annotations" \
+    --bacteria           "${EGGNOG_DIR}/output/bacteria.emapper.annotations" \
+    --outdir             "${CLEANED_DIR}" \
+    --sample-genus-map   "${SPECIES_CALLS_DIR}/SpeciesCallsArchaea.csv" \
+    --controls-genus-map "${CONTROLS_GENUS_MAP}"
+
+python "${REPO_ROOT}/scripts/eggnog/link_eggnog.py" \
+    --members "${EXTRACTION_DIR}/archaea/phasomeit_members.csv" \
+    --eggnog  "${CLEANED_DIR}/all_annotations.tsv" \
+    --out     "${CLEANED_DIR}/Mapped_functions/phasomeit_eggnog_linked.tsv"
+
+if [[ -f "${EXTRACTION_DIR}/controls/phasomeit_members.csv" ]]; then
+  python "${REPO_ROOT}/scripts/eggnog/link_eggnog.py" \
+      --members "${EXTRACTION_DIR}/controls/phasomeit_members.csv" \
+      --eggnog  "${CLEANED_DIR}/all_annotations.tsv" \
+      --out     "${CLEANED_DIR}/Mapped_functions/phasomeit_eggnog_linked_controls.tsv"
+fi

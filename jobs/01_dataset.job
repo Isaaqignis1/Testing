@@ -1,0 +1,64 @@
+#!/bin/bash --login
+# Stage 01: Per-species filter (BEFORE Prokka, to save compute)
+#
+# Purpose:    Apply the MIN_PER_SPECIES threshold and drop contaminants.
+#             Writes SpeciesCallsArchaea.csv (the surviving sample list).
+# Inputs:     INPUTS/archaea/atb_archaea_metadata.tsv  (stage 00)
+#             standards/contaminants.txt
+# Outputs:    OUTPUTS/02_dataset/species_calls/SpeciesCallsArchaea.csv
+#             OUTPUTS/02_dataset/species_calls/species_count_summary.csv
+#             OUTPUTS/02_dataset/species_calls/genus_count_summary.csv
+#             INPUTS/archaea/filtered_fasta_list.txt
+# Wall time:  ~10 min
+# Depends on: stage 00 (atb_archaea_metadata.tsv must exist).
+# Notes:      Inspect species_count_summary.csv before submitting stage 02 so
+#             you don't annotate samples that won't be analysed downstream.
+#
+# Submit:
+#   bash submit.sh jobs/01_dataset.job
+
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -t 00:30:00
+#SBATCH -J 01_dataset
+
+set -euo pipefail
+: "${REPO_ROOT:?REPO_ROOT must be passed via sbatch --export. See README.}"
+source "${REPO_ROOT}/config.sh"
+
+module purge
+[ -n "${CONDA_MODULE}" ] && module load "${CONDA_MODULE}"
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate "${ENV_PHASOMEIT}"
+
+mkdir -p "${SPECIES_CALLS_DIR}"
+
+python "${REPO_ROOT}/scripts/dataset/build_species_calls.py" \
+    --meta              "${ATB_METADATA}" \
+    --out-dir           "${SPECIES_CALLS_DIR}" \
+    --min-per-species   "${MIN_PER_SPECIES}" \
+    --contaminants-file "${REPO_ROOT}/standards/contaminants.txt"
+
+# Build the FASTA list for stage 02 (Prokka). One filename per surviving sample.
+# Sample IDs in column 1 of SpeciesCallsArchaea.csv get matched against the
+# files in GENOMES_ARCHAEA_DIR (any common extension).
+FILTERED_LIST="${INPUTS_DIR}/archaea/filtered_fasta_list.txt"
+: > "${FILTERED_LIST}"
+tail -n +2 "${SPECIES_CALLS_DIR}/SpeciesCallsArchaea.csv" | cut -d',' -f1 | while read -r sid; do
+  for ext in fa fasta fna fa.gz fasta.gz fna.gz; do
+    f="${GENOMES_ARCHAEA_DIR}/${sid}.${ext}"
+    if [ -f "$f" ]; then echo "${sid}.${ext}" >> "${FILTERED_LIST}"; break; fi
+  done
+done
+N_MATCHED=$(wc -l < "${FILTERED_LIST}")
+N_SAMPLES=$(($(wc -l < "${SPECIES_CALLS_DIR}/SpeciesCallsArchaea.csv") - 1))
+N_MISSING=$((N_SAMPLES - N_MATCHED))
+
+echo
+echo "--- summary ---"
+echo "samples after filter : ${N_SAMPLES}"
+echo "matched to FASTA     : ${N_MATCHED}"
+echo "missing FASTA        : ${N_MISSING}"
+echo "filtered list        : ${FILTERED_LIST}"
+echo
+echo "review ${SPECIES_CALLS_DIR}/species_count_summary.csv before submitting stage 02"

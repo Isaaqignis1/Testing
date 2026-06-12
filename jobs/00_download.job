@@ -1,0 +1,50 @@
+#!/bin/bash --login
+# Stage 00: ATB archaeal genome download
+#
+# Purpose:    Pull the 818 archaea FASTAs from OSF (a ~154 MB tarball) plus
+#             the species_calls.tsv.gz metadata file.
+# Inputs:     OSF nehtp node (argkq tarball + nypmt species_calls).
+# Outputs:    INPUTS/archaea/fasta/*.fa
+#             INPUTS/archaea/atb_archaea_metadata.tsv
+#             INPUTS/archaea/fasta_list.txt
+# Wall time:  ~30 min
+# Depends on: nothing.
+# Idempotent: cached tarball is reused on re-run; extracted files are kept.
+#
+# Submit (wrapper):
+#   bash submit.sh jobs/00_download.job
+#
+# Submit (raw):
+#   source config.sh && mkdir -p "$LOGS_DIR" && \
+#   sbatch --export=ALL,REPO_ROOT=$PWD \
+#          -o "$LOGS_DIR/%x_%j.out" -e "$LOGS_DIR/%x_%j.err" \
+#          jobs/00_download.job
+
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -t 4:00:00
+#SBATCH -J 00_download
+
+set -euo pipefail
+: "${REPO_ROOT:?REPO_ROOT must be passed via sbatch --export. See README.}"
+source "${REPO_ROOT}/config.sh"
+
+module purge
+[ -n "${CONDA_MODULE}" ] && module load "${CONDA_MODULE}"
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate "${ENV_PHASOMEIT}"
+
+mkdir -p "${GENOMES_ARCHAEA_DIR}" "${ATB_TARBALL_CACHE}"
+
+python "${REPO_ROOT}/scripts/dataset/download_atb.py" \
+    --outdir-archaea  "${GENOMES_ARCHAEA_DIR}" \
+    --metadata-out    "${ATB_METADATA}" \
+    --fasta-list-out  "${ARCHAEA_FASTA_LIST}" \
+    --tar-cache       "${ATB_TARBALL_CACHE}"
+
+echo
+echo "--- summary ---"
+N=$(find "${GENOMES_ARCHAEA_DIR}" -maxdepth 1 -name "*.fa*" 2>/dev/null | wc -l)
+echo "archaea fastas : ${N}"
+echo "metadata lines : $(wc -l < "${ATB_METADATA}")"
+echo "fasta_list     : $(wc -l < "${ARCHAEA_FASTA_LIST}") entries"

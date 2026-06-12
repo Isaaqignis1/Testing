@@ -1,0 +1,62 @@
+#!/bin/bash --login
+# Stage 04: PhasomeIt per genus (SLURM array)
+#
+# Purpose:    Run PhasomeIt on each genus folder with the paper-default
+#             cutoffs (-c 7 6 0 5 5).
+# Inputs:     OUTPUTS/03_phasomeit/<set>/_genus_dirs.txt
+# Outputs:    OUTPUTS/03_phasomeit/<set>/<genus>/summary_tracts/
+# Wall time:  Up to 6h per task.
+# Depends on: stage 03.
+#
+# How to submit (two steps, run separately for archaea then controls):
+#
+#   Step 1 - dry-run for archaea, see how many genera:
+#     bash submit.sh jobs/04_phasomeit.job
+#
+#   Step 2 - submit the array, archaea:
+#     bash submit.sh jobs/04_phasomeit.job --array=1-N%9
+#
+#   Controls (optional, only if you provided control FASTAs):
+#     LIST=$PHASOME_CONTROLS_BASE/_genus_dirs.txt
+#     bash submit.sh jobs/04_phasomeit.job --array=1-M%9 --export=ALL,REPO_ROOT=$PWD,LIST=$LIST
+
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -c 8
+#SBATCH -t 6:00:00
+#SBATCH -J 04_phasomeit
+
+set -euo pipefail
+: "${REPO_ROOT:?REPO_ROOT must be passed via sbatch --export. See README.}"
+source "${REPO_ROOT}/config.sh"
+
+module purge
+[ -n "${CONDA_MODULE}" ] && module load "${CONDA_MODULE}"
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate "${ENV_PHASOMEIT}"
+
+# Default LIST = archaea. Override LIST via --export to process controls instead.
+LIST="${LIST:-${PHASOME_ARCHAEA_BASE}/_genus_dirs.txt}"
+
+if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
+  N=$(wc -l < "${LIST}")
+  echo "LIST=${LIST} has ${N} genera"
+  echo
+  echo "re-submit with:"
+  echo "  bash submit.sh jobs/04_phasomeit.job --array=1-${N}%9"
+  exit 0
+fi
+
+TARGET=$(awk "NR==${SLURM_ARRAY_TASK_ID}" "${LIST}")
+GENUS=$(basename "${TARGET}")
+echo "task ${SLURM_ARRAY_TASK_ID}  genus ${GENUS}"
+
+cd "${PHASOMEIT_REPO}"
+chmod +x "${PHASOMEIT_REPO}/bossref" 2>/dev/null || true
+
+if [[ -d "${TARGET}/summary_tracts" ]]; then
+  echo "skip ${GENUS}, summary_tracts exists"
+  exit 0
+fi
+
+python phasomeit.py -t "${TARGET}" -c 7 6 0 5 5

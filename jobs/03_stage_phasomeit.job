@@ -1,40 +1,48 @@
 #!/bin/bash --login
-# Stage:    03 — Stage PhasomeIt input
-# Purpose:  Build per-genus <Genus>_gffs.txt from filtered species calls + Prokka outputs, then copy .gbk files into PHASOME_ARCHAEA_BASE/<genus>/.
-# Walltime: 1h
-# Depends:  02
-# Inputs:   SPECIES_CALLS_DIR/SpeciesCallsArchaea.csv (stage 01), PROKKA_OUT (stage 02)
-# Outputs:  GFF_LISTS_DIR/<Genus>_gffs.txt, PHASOME_ARCHAEA_BASE/<genus>/*.gbk, PHASOME_ARCHAEA_BASE/_genus_dirs.txt
-# Notes:    Combines the old 02 second-half (gff-list build) with the gbk staging.
+# Stage 03: Stage PhasomeIt inputs
+#
+# Purpose:    Build per-genus <Genus>_gffs.txt from the filtered species
+#             calls + Prokka outputs, then copy .gbk files into the
+#             per-genus folders that PhasomeIt expects.
+# Inputs:     OUTPUTS/02_dataset/species_calls/SpeciesCallsArchaea.csv (stage 01)
+#             OUTPUTS/01_prokka/archaea/                               (stage 02)
+# Outputs:    OUTPUTS/02_dataset/genus_gff_lists/<Genus>_gffs.txt
+#             OUTPUTS/03_phasomeit/archaea/<genus>/*.gbk
+#             OUTPUTS/03_phasomeit/archaea/_genus_dirs.txt
+# Wall time:  ~1h
+# Depends on: stage 02.
+#
+# Submit:
+#   bash submit.sh jobs/03_stage_phasomeit.job
 
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -t 1:00:00
-#SBATCH -J stage_phasomeit
+#SBATCH -J 03_stage_phasomeit
 
 set -euo pipefail
-: "${REPO_ROOT:?REPO_ROOT must be passed via sbatch --export}"
-source "${REPO_ROOT}/config.sh.example"
-[ -f "${REPO_ROOT}/config.sh" ] && source "${REPO_ROOT}/config.sh"
+: "${REPO_ROOT:?REPO_ROOT must be passed via sbatch --export. See README.}"
+source "${REPO_ROOT}/config.sh"
 
 module purge
-[[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
+[ -n "${CONDA_MODULE}" ] && module load "${CONDA_MODULE}"
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate "${ENV_PHASOMEIT}"
 
 mkdir -p "${GFF_LISTS_DIR}"
 
-# 1. build per-genus gff lists from filtered samples + Prokka outputs
+# 1. Build per-genus gff lists from filtered samples + Prokka outputs.
 python "${REPO_ROOT}/scripts/dataset/build_genus_gff_lists.py" \
     --species-calls "${SPECIES_CALLS_DIR}/SpeciesCallsArchaea.csv" \
     --prokka-dir    "${PROKKA_OUT}" \
     --out-dir       "${GFF_LISTS_DIR}"
 
-# 2. stage the .gbk files into per-genus folders
+# 2. Stage the .gbk files into per-genus folders.
 python "${REPO_ROOT}/scripts/phasomeit/setup_archaea.py" \
     --in-dir   "${GFF_LISTS_DIR}" \
     --out-root "${PHASOME_ARCHAEA_BASE}"
 
-# 3. controls (optional, only if a mapping is provided)
+# 3. Controls. Only runs if a controls mapping AND Prokka controls output exist.
 if [[ -f "${CONTROLS_SPECIES_TSV}" && -d "${PROKKA_CTRL_OUT}" ]]; then
   python "${REPO_ROOT}/scripts/phasomeit/setup_controls.py" \
       --prokka-dir "${PROKKA_CTRL_OUT}" \
@@ -42,7 +50,7 @@ if [[ -f "${CONTROLS_SPECIES_TSV}" && -d "${PROKKA_CTRL_OUT}" ]]; then
       --out-root   "${PHASOME_CONTROLS_BASE}"
 fi
 
-# 4. write _genus_dirs.txt lists used by stage 04
+# 4. Write _genus_dirs.txt (the per-genus folder list used by stage 04).
 find "${PHASOME_ARCHAEA_BASE}"  -mindepth 1 -maxdepth 1 -type d ! -name "_*" | sort > "${PHASOME_ARCHAEA_BASE}/_genus_dirs.txt"
 [[ -d "${PHASOME_CONTROLS_BASE}" ]] && \
   find "${PHASOME_CONTROLS_BASE}" -mindepth 1 -maxdepth 1 -type d ! -name "_*" | sort > "${PHASOME_CONTROLS_BASE}/_genus_dirs.txt"

@@ -1,0 +1,78 @@
+#!/bin/bash --login
+# Stage 02: Prokka annotation (SLURM array)
+#
+# Purpose:    Annotate every surviving FASTA with Prokka --kingdom Archaea.
+#             Skips samples dropped by stage 01.
+# Inputs:     INPUTS/archaea/filtered_fasta_list.txt  (stage 01)
+# Outputs:    OUTPUTS/01_prokka/archaea/<sample>/<sample>.{gff,gbk,faa}
+# Wall time:  Up to 24h per task. ~414 tasks if you used the default
+#             MIN_PER_SPECIES=5 filter.
+# Depends on: stage 01.
+#
+# How to submit (two steps):
+#
+#   Step 1 - dry-run to see how many samples need annotating:
+#     bash submit.sh jobs/02_prokka.job
+#     # the job prints the recommended -a 1-N spec and exits in 1 second
+#
+#   Step 2 - re-submit with that array range:
+#     bash submit.sh jobs/02_prokka.job --array=1-414%50
+#     # the %50 cap throttles to 50 tasks running at once; tune for your cluster
+
+#SBATCH -p multicore
+#SBATCH -n 4
+#SBATCH -t 1-0
+#SBATCH -J 02_prokka
+
+set -euo pipefail
+: "${REPO_ROOT:?REPO_ROOT must be passed via sbatch --export. See README.}"
+source "${REPO_ROOT}/config.sh"
+
+module purge
+[ -n "${CONDA_MODULE}" ] && module load "${CONDA_MODULE}"
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate "${ENV_PROKKA}"
+
+LIST="${INPUTS_DIR}/archaea/filtered_fasta_list.txt"
+if [ ! -s "$LIST" ]; then
+  echo "ERROR: $LIST is missing or empty. Has stage 01 run?" >&2
+  exit 1
+fi
+
+# No array index set: this is the dry-run. Print the suggested range and exit.
+if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
+  N=$(wc -l < "$LIST")
+  echo "filtered list has ${N} samples"
+  echo
+  echo "re-submit with:"
+  echo "  bash submit.sh jobs/02_prokka.job --array=1-${N}%50"
+  exit 0
+fi
+
+# Array task: process one fasta.
+FA_NAME=$(awk "NR==${SLURM_ARRAY_TASK_ID}" "$LIST")
+FA="${GENOMES_ARCHAEA_DIR}/${FA_NAME}"
+
+BASE=$(basename "${FA_NAME}")
+BASE=${BASE%.gz}; BASE=${BASE%.fa}; BASE=${BASE%.fna}; BASE=${BASE%.fasta}
+
+mkdir -p "${PROKKA_OUT}"
+
+if [[ -s "${PROKKA_OUT}/${BASE}/${BASE}.gff" ]]; then
+  echo "skip: ${BASE} already annotated"
+  exit 0
+fi
+
+# Prokka needs uncompressed input.
+WORK="$(mktemp -d)"
+trap 'rm -rf "${WORK}"' EXIT
+INFA="${WORK}/${BASE}.fa"
+if [[ "${FA}" == *.gz ]]; then zcat "${FA}" > "${INFA}"; else cp "${FA}" "${INFA}"; fi
+
+prokka \
+  --outdir   "${PROKKA_OUT}/${BASE}" \
+  --prefix   "${BASE}" \
+  --kingdom  Archaea \
+  --compliant \
+  --cpus     "${SLURM_CPUS_ON_NODE:-${SLURM_NTASKS:-4}}" \
+  "${INFA}"

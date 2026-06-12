@@ -1,6 +1,3 @@
-# personal config (copy from example, never committed)
-config.sh
-
 # python
 __pycache__/
 *.pyc
@@ -10,8 +7,10 @@ __pycache__/
 
 # SLURM stdout/stderr if they ever land inside the repo
 slurm-*.out
-*.out
-*.err
+slurm-*.err
+
+# the optional chained-submit helper users write locally
+submit_all.sh
 
 # OS noise
 .DS_Store

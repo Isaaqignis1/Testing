@@ -1,0 +1,37 @@
+#!/bin/bash --login
+# Stage 12: Within-species tract length variation
+#
+# Purpose:    For each (genus, species, gene group), check whether the SSR
+#             tract length actually varies across strains (the method
+#             follow-up in section 4.4 of the report).
+# Inputs:     OUTPUTS/04_extraction/phasomeit_tract_data.csv       (stage 05)
+#             OUTPUTS/02_dataset/species_calls/SpeciesCallsArchaea.csv  (stage 01)
+# Outputs:    OUTPUTS/08_analysis/tract_length_variation_per_group.csv
+#             OUTPUTS/08_analysis/tract_length_variation_per_genus.csv
+# Wall time:  ~1h
+# Depends on: stage 05.
+#
+# Submit:
+#   bash submit.sh jobs/12_tract_variation.job
+
+#SBATCH -p multicore
+#SBATCH -n 2
+#SBATCH -t 1:00:00
+#SBATCH -J 12_tract_variation
+
+set -euo pipefail
+: "${REPO_ROOT:?REPO_ROOT must be passed via sbatch --export. See README.}"
+source "${REPO_ROOT}/config.sh"
+
+module purge
+[ -n "${CONDA_MODULE}" ] && module load "${CONDA_MODULE}"
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate "${ENV_PHASOMEIT}"
+
+mkdir -p "${ANALYSIS_DIR}"
+
+python "${REPO_ROOT}/scripts/analysis/tract_length_variation.py" \
+    --tracts          "${EXTRACTION_DIR}/phasomeit_tract_data.csv" \
+    --species-calls   "${SPECIES_CALLS_DIR}/SpeciesCallsArchaea.csv" \
+    --controls-calls  "${CONTROLS_SPECIES_TSV}" \
+    --outdir          "${ANALYSIS_DIR}"

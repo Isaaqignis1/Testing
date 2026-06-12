@@ -1,23 +1,32 @@
 #!/bin/bash --login
-# Stage:    11 — PV counts + PV/Mb
-# Purpose:  Per-genome PV count, genome size, PV per Mb (per genome and per genus).
-# Walltime: 1h
-# Depends:  05
-# Inputs:   PHASOME_*_BASE, EXTRACTION_DIR/*/phasomeit_group_summary.csv
-# Outputs:  QUANT_DIR/{genome_lengths_*.csv,pv_per_fasta.csv,pv_per_mb_per_genome.csv,pv_per_mb_per_genus.csv}
+# Stage 11: PV counts + PV per Mb
+#
+# Purpose:    Per-genome PV count, genome size, and PV per Mb at both
+#             per-genome and per-genus levels.
+# Inputs:     OUTPUTS/03_phasomeit/<set>/                                 (stage 04)
+#             OUTPUTS/04_extraction/<set>/phasomeit_group_summary.csv     (stage 05)
+# Outputs:    OUTPUTS/07_quantification/genome_lengths_{archaea,controls}.csv
+#             OUTPUTS/07_quantification/pv_per_fasta.csv
+#             OUTPUTS/07_quantification/pv_per_mb_per_genome.csv
+#             OUTPUTS/07_quantification/pv_per_mb_per_genus.csv
+# Wall time:  ~1h
+# Depends on: stage 05.
+#
+# Submit:
+#   bash submit.sh jobs/11_quantify.job
 
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -t 1:00:00
-#SBATCH -J quantify
+#SBATCH -J 11_quantify
 
 set -euo pipefail
-: "${REPO_ROOT:?REPO_ROOT must be passed via sbatch --export}"
-source "${REPO_ROOT}/config.sh.example"
-[ -f "${REPO_ROOT}/config.sh" ] && source "${REPO_ROOT}/config.sh"
+: "${REPO_ROOT:?REPO_ROOT must be passed via sbatch --export. See README.}"
+source "${REPO_ROOT}/config.sh"
 
 module purge
-[[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
+[ -n "${CONDA_MODULE}" ] && module load "${CONDA_MODULE}"
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate "${ENV_PHASOMEIT}"
 
 mkdir -p "${QUANT_DIR}"

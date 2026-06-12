@@ -1,23 +1,32 @@
 #!/bin/bash --login
-# Stage:    05 — Parse PhasomeIt HTML
-# Purpose:  Turn PhasomeIt HTML output into structured CSVs + Prokka function ranking.
-# Walltime: 6h
-# Depends:  04
-# Inputs:   PHASOME_ARCHAEA_BASE/<genus>/summary_tracts/
-# Outputs:  EXTRACTION_DIR/{archaea,controls}/{phasomeit_group_summary,phasomeit_annotated_functions,phasomeit_members,phasomeit_pairwise}.csv, EXTRACTION_DIR/phasomeit_tract_data.csv, EXTRACTION_DIR/phasomeit_full_group_summary.csv
+# Stage 05: Parse PhasomeIt HTML output into structured CSVs
+#
+# Purpose:    Turn each genus's PhasomeIt HTML output into tidy CSVs:
+#             group summary, annotated functions, members, pairwise tract
+#             data, plus a Prokka function ranking per genus.
+# Inputs:     OUTPUTS/03_phasomeit/<set>/<genus>/summary_tracts/
+# Outputs:    OUTPUTS/04_extraction/{archaea,controls}/phasomeit_*.csv
+#             OUTPUTS/04_extraction/phasomeit_tract_data.csv
+#             OUTPUTS/04_extraction/phasomeit_full_group_summary.csv
+#             OUTPUTS/04_extraction/archaea/prokka_function_ranking/*.csv
+# Wall time:  ~6h
+# Depends on: stage 04.
+#
+# Submit:
+#   bash submit.sh jobs/05_parse_phasomeit.job
 
 #SBATCH -p multicore
 #SBATCH -n 2
 #SBATCH -t 6:00:00
-#SBATCH -J parse_phasomeit
+#SBATCH -J 05_parse_phasomeit
 
 set -euo pipefail
-: "${REPO_ROOT:?REPO_ROOT must be passed via sbatch --export}"
-source "${REPO_ROOT}/config.sh.example"
-[ -f "${REPO_ROOT}/config.sh" ] && source "${REPO_ROOT}/config.sh"
+: "${REPO_ROOT:?REPO_ROOT must be passed via sbatch --export. See README.}"
+source "${REPO_ROOT}/config.sh"
 
 module purge
-[[ -n "${CONDA_MODULE}" ]] && module load "${CONDA_MODULE}"
+[ -n "${CONDA_MODULE}" ] && module load "${CONDA_MODULE}"
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate "${ENV_PHASOMEIT}"
 
 mkdir -p "${EXTRACTION_DIR}/archaea" "${EXTRACTION_DIR}/controls"
